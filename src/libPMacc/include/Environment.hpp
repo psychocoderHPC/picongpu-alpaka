@@ -1,6 +1,6 @@
 /**
  * Copyright 2014-2016 Felix Schmitt, Conrad Schumann,
- *                     Alexander Grund, Axel Huebl
+ *                     Alexander Grund, Axel Huebl, Benjamin Worpitz
  *
  * This file is part of libPMacc.
  *
@@ -23,6 +23,8 @@
 
 #pragma once
 
+#include "DeviceManager.hpp"
+
 #include "eventSystem/EventSystem.hpp"
 #include "particles/tasks/ParticleFactory.hpp"
 
@@ -38,7 +40,6 @@
 
 #include "Environment.def"
 
-#include <cuda_runtime.h>
 
 namespace PMacc
 {
@@ -51,6 +52,15 @@ template <unsigned DIM>
 class Environment
 {
 public:
+
+    /** Get the instance of the DeviceManager
+     *
+     * @return instance of DeviceManager
+     */
+    PMacc::DeviceManager& DeviceManager()
+    {
+        return PMacc::DeviceManager::getInstance();
+    }
 
     PMacc::GridController<DIM>& GridController()
     {
@@ -129,7 +139,11 @@ public:
 
         PMacc::Filesystem<DIM>::getInstance();
 
-        setDevice((int) (PMacc::GridController<DIM>::getInstance().getHostRank()));
+        PMacc::DeviceManager::getInstance().init(
+            static_cast<std::size_t>(
+                PMacc::GridController<DIM>::getInstance().getHostRank()
+            )
+        );
 
         StreamController::getInstance().activate();
 
@@ -166,81 +180,6 @@ private:
 
     Environment& operator=(const Environment&);
 
-    void setDevice(int deviceNumber)
-    {
-        int num_gpus = 0; //number of gpus
-        cudaGetDeviceCount(&num_gpus);
-        //##ERROR handling
-        if (num_gpus < 1) //check if cuda device is found
-        {
-            throw std::runtime_error("no CUDA capable devices detected");
-        }
-        else if (num_gpus < deviceNumber) //check if device can be selected by deviceNumber
-        {
-            std::cerr << "no CUDA device " << deviceNumber << ", only " << num_gpus << " devices found" << std::endl;
-            throw std::runtime_error("CUDA capable devices can't be selected");
-        }
-
-
-        int maxTries = num_gpus;
-
-        cudaDeviceProp devProp;
-        cudaError rc;
-        CUDA_CHECK(cudaGetDeviceProperties(&devProp, deviceNumber));
-
-        /* if the gpu compute mode is set to default we use the given `deviceNumber` */
-        if (devProp.computeMode == cudaComputeModeDefault)
-            maxTries = 1;
-
-        for (int deviceOffset = 0; deviceOffset < maxTries; ++deviceOffset)
-        {
-            const int tryDeviceId = (deviceOffset + deviceNumber) % num_gpus;
-            rc = cudaSetDevice(tryDeviceId);
-
-            if(rc == cudaSuccess)
-            {
-               cudaStream_t stream;
-               /* \todo: Check if this workaround is needed
-                *
-                * - since NVIDIA change something in driver cudaSetDevice never
-                * return an error if another process already use the selected
-                * device if gpu compute mode is set "process exclusive"
-                * - create a dummy stream to check if the device is already used by
-                * an other process.
-                * - cudaStreamCreate fail if gpu is already in use
-                */
-               rc = cudaStreamCreate(&stream);
-            }
-
-            if (rc == cudaSuccess)
-            {
-                cudaDeviceProp dprop;
-                CUDA_CHECK(cudaGetDeviceProperties(&dprop, tryDeviceId));
-                log<ggLog::CUDA_RT > ("Set device to %1%: %2%") % tryDeviceId % dprop.name;
-                if(cudaErrorSetOnActiveProcess == cudaSetDeviceFlags(cudaDeviceScheduleSpin))
-                {
-                    cudaGetLastError(); //reset all errors
-                    /* - because of cudaStreamCreate was called cudaSetDeviceFlags crashed
-                     * - to set the flags reset the device and set flags again
-                     */
-                    CUDA_CHECK(cudaDeviceReset());
-                    CUDA_CHECK(cudaSetDeviceFlags(cudaDeviceScheduleSpin));
-                }
-                CUDA_CHECK(cudaGetLastError());
-                break;
-            }
-            else if (rc == cudaErrorDeviceAlreadyInUse || rc==cudaErrorDevicesUnavailable)
-            {
-                cudaGetLastError(); //reset all errors
-                log<ggLog::CUDA_RT > ("Device %1% already in use, try next.") % tryDeviceId;
-                continue;
-            }
-            else
-            {
-                CUDA_CHECK(rc); /*error message*/
-            }
-        }
-    }
 };
 
 }
