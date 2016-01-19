@@ -45,6 +45,20 @@ namespace PMacc
     {
     public:
 
+        template<
+            typename T_DeviceType
+        >
+        using  MemBufCurrentSize = ::alpaka::mem::buf::Buf<
+            T_DeviceType,
+            size_t, // element type
+            alpaka::Dim<DIM1>,
+            alpaka::MemSize // extent type
+        >;
+
+        using  MemBufCurrentSizeHost = MemBufCurrentSize<
+            alpaka::HostDev
+        >;
+
         typedef DataBox<PitchedBox<TYPE, DIM> > DataBoxType;
 
         /** constructor
@@ -55,9 +69,19 @@ namespace PMacc
          * @param physicalMemorySize size of the physical memory (in elements)
          */
         Buffer(DataSpace<DIM> size, DataSpace<DIM> physicalMemorySize) :
-        data_space(size), data1D(true), current_size(NULL), m_physicalMemorySize(physicalMemorySize)
+        data_space(size), data1D(true), current_size(NULL), m_physicalMemorySize(physicalMemorySize),
+        m_memBufCurrentSizeHost(
+            alpaka::mem::buf::alloc
+            <
+                size_t,
+                alpaka::MemSize
+            >(
+                Environment<>::get().DeviceManager().getHostDevice(),
+                static_cast<alpaka::MemSize>(1u)
+            )
+        )
         {
-            CUDA_CHECK(cudaMallocHost(&current_size, sizeof (size_t)));
+            current_size = ::alpaka::mem::view::getPtrNative(m_memBufCurrentSizeHost);
             *current_size = size.productOfComponents();
         }
 
@@ -66,7 +90,7 @@ namespace PMacc
          */
         virtual ~Buffer()
         {
-            CUDA_CHECK(cudaFreeHost(current_size));
+            current_size = NULL;
         }
 
         /*! Get base pointer to memory
@@ -171,6 +195,27 @@ namespace PMacc
             *current_size = newsize;
         }
 
+        /** get native alpaka buffer with the current size of the `Buffer`
+         *
+         * location of the alpaka buffer is HOST
+         *
+         * @{
+         */
+        const MemBufCurrentSizeHost &
+        getMemBufSizeHost() const
+        {
+            __startOperation(ITask::TASK_HOST);
+            return m_memBufCurrentSizeHost;
+        }
+
+        MemBufCurrentSizeHost &
+        getMemBufSizeHost()
+        {
+            __startOperation(ITask::TASK_HOST);
+            return m_memBufCurrentSizeHost;
+        }
+        /// @}
+
         virtual void reset(bool preserveData = false)=0;
 
         virtual void setValue(const TYPE& value)=0;
@@ -197,6 +242,9 @@ namespace PMacc
         DataSpace<DIM> m_physicalMemorySize;
 
         size_t *current_size;
+
+        ///! buffer with the current host size
+        MemBufCurrentSizeHost m_memBufCurrentSizeHost;
 
         bool data1D;
 

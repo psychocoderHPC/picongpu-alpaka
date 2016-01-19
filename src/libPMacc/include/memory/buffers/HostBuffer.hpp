@@ -44,6 +44,30 @@ namespace PMacc
     class HostBuffer : public Buffer<TYPE, DIM>
     {
     public:
+        using DataView = ::alpaka::mem::view::ViewPlainPtr<
+            alpaka::HostDev,
+            TYPE,
+            alpaka::Dim<DIM>,
+            alpaka::MemSize
+         >;
+
+
+        /**
+         * Returns a view to the internal alpaka buffer.
+         *
+         * @return view to internal alpaka buffer
+         *
+         * @{
+         */
+        virtual
+        DataView const &
+        getMemBufView() const = 0;
+
+        virtual
+        DataView &
+        getMemBufView() = 0;
+        ///@}
+
         /**
          * Copies the data from the given DeviceBuffer to this HostBuffer.
          *
@@ -74,7 +98,8 @@ namespace PMacc
         cartBuffer()
         {
             container::HostBuffer<TYPE, DIM> result;
-            result.dataPointer = this->getBasePointer();
+            auto & memBufView = this->getMemBufView();
+            result.dataPointer = ::alpaka::mem::view::getPtrNative(memBufView);
             result._size = math::Size_t<DIM>(this->getDataSpace());
             if(DIM >= 2)
                 result.pitch[0] = result._size.x() * sizeof(TYPE);
