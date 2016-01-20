@@ -29,16 +29,26 @@
 #include "eventSystem/events/kernelEvents.hpp"
 #include "dimensions/DataSpace.hpp"
 
-#include <cuda_runtime_api.h>
-#include <cuda.h>
-
-__global__ void kernelSetValueOnDeviceMemory(size_t* pointer, const size_t size)
-{
-    *pointer = size;
-}
 
 namespace PMacc
 {
+
+struct KernelSetValueOnDeviceMemory
+{
+    static constexpr uint32_t dim = DIM1;
+
+    template<
+        typename T_Acc
+    >
+    ALPAKA_FN_ACC void operator()(
+        const T_Acc&,
+        size_t* const pointer,
+        const size_t& size
+    ) const
+    {
+        *pointer = size;
+    }
+};
 
 template <class TYPE, unsigned DIM>
 class DeviceBuffer;
@@ -83,10 +93,36 @@ private:
 
     void setSize()
     {
-        kernelSetValueOnDeviceMemory
-            << < 1, 1, 0, this->getCudaStream() >> >
-            (destination->getCurrentSizeOnDevicePointer(), size);
-
+        KernelSetValueOnDeviceMemory kernel;
+        ::alpaka::workdiv::WorkDivMembers<
+            alpaka::Dim<KernelSetValueOnDeviceMemory::dim>,
+            alpaka::IdxSize
+        >
+        workDiv(
+            static_cast<alpaka::IdxSize>(1u),
+            static_cast<alpaka::IdxSize>(1u),
+            static_cast<alpaka::IdxSize>(1u)
+        );
+        auto const exec(
+            ::alpaka::exec::create<
+                alpaka::AlpakaAcc<
+                    alpaka::Dim<
+                        KernelSetValueOnDeviceMemory::dim
+                    >
+                >
+            >(
+                workDiv,
+                kernel,
+                ::alpaka::mem::view::getPtrNative(
+                    destination->getMemBufSizeAcc()
+                ),
+                size
+            )
+        );
+        ::alpaka::stream::enqueue(
+            this->getEventStream()->getCudaStream(),
+            exec
+        );
         activate();
     }
 
