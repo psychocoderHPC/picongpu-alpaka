@@ -1,5 +1,5 @@
 /**
- * Copyright 2013-2016 Felix Schmitt, Rene Widera
+ * Copyright 2013-2016 Felix Schmitt, Rene Widera, Axel Huebl, Benjamin Worpitz
  *
  * This file is part of libPMacc.
  *
@@ -22,8 +22,8 @@
 
 #pragma once
 
-#include <cuda.h>
 #include "types.h"
+#include "Environment.hpp"
 
 #include <cstring> // memset
 
@@ -48,15 +48,20 @@ public:
      * @param free amount of free memory in bytes. can be NULL
      * @param total total amount of memory in bytes. can be NULL. (NULL by default)
      */
-    void getMemoryInfo(size_t *free, size_t *total = NULL)
+   void getMemoryInfo(size_t *free, size_t *total = NULL)
     {
-        size_t freeInternal = 0;
-        size_t totalInternal = 0;
-
-        CUDA_CHECK(cudaMemGetInfo(&freeInternal, &totalInternal));
+        auto&& device(
+            Environment<DIM1>::get().DeviceManager().getAccDevice()
+        );
 
         if (free != NULL)
         {
+            size_t freeInternal(
+                ::alpaka::dev::getFreeMemBytes(
+                    device
+                )
+            );
+
             if (reservedMem > freeInternal)
                 freeInternal = 0;
             else
@@ -66,6 +71,12 @@ public:
         }
         if (total != NULL)
         {
+            size_t totalInternal(
+                ::alpaka::dev::getMemBytes(
+                    device
+                )
+            );
+
             if (reservedMem > totalInternal)
                 totalInternal = 0;
             else
@@ -78,6 +89,13 @@ public:
     /** Returns true if the memory pool is shared by host and device */
     bool isSharedMemoryPool()
     {
+/* \todo: remove this precompiler macro and add run time detection
+ * problem: if more than one process per node allocates 90% of the main host memory
+ * we will run out of memory or will begin to swap
+ */
+#ifdef PMACC_ACC_CPU
+        return true;
+#else
         size_t freeInternal = 0;
         size_t freeAtStart = 0;
 
@@ -97,6 +115,7 @@ public:
             return true;
 
         return false;
+#endif
     }
 
     void setReservedMemory(size_t reservedMem)
