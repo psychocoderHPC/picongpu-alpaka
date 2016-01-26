@@ -28,84 +28,108 @@
 #include "memory/boxes/CachedBox.hpp"
 #include "memory/dataTypes/Mask.hpp"
 
-#include "nvidia/rng/RNG.hpp"
-#include "nvidia/rng/methods/Xor.hpp"
-#include "nvidia/rng/distributions/Uniform_float.hpp"
-
 namespace gol
 {
     namespace kernel
     {
         using namespace PMacc;
 
-        template<class BoxReadOnly, class BoxWriteOnly, class Mapping>
-        __global__ void evolution(BoxReadOnly buffRead,
-                                  BoxWriteOnly buffWrite,
-                                  uint32_t rule,
-                                  Mapping mapper)
+        struct Evolution
         {
-            typedef typename BoxReadOnly::ValueType Type;
-            typedef SuperCellDescription<
-                    typename Mapping::SuperCellSize,
-                    math::CT::Int< 1, 1 >,
-                    math::CT::Int< 1, 1 >
-                    > BlockArea;
-            PMACC_AUTO(cache, CachedBox::create < 0, Type > (BlockArea()));
+            static constexpr uint32_t dim = DIM2;
 
-            const Space block(mapper.getSuperCellIndex(Space(blockIdx)));
-            const Space blockCell = block * Mapping::SuperCellSize::toRT();
-            const Space threadIndex(threadIdx);
-            PMACC_AUTO(buffRead_shifted, buffRead.shift(blockCell));
-
-            ThreadCollective<BlockArea> collective(threadIndex);
-
-            nvidia::functors::Assign assign;
-            collective(
-                      assign,
-                      cache,
-                      buffRead_shifted
-                      );
-            __syncthreads();
-
-            Type neighbors = 0;
-            for (uint32_t i = 1; i < 9; ++i)
+            template<
+                typename T_Acc,
+                class BoxReadOnly,
+                class BoxWriteOnly,
+                class Mapping
+            >
+            DINLINE void
+            operator()(
+                const T_Acc& acc,
+                const BoxReadOnly& buffRead,
+                BoxWriteOnly& buffWrite,
+                const uint32_t rule,
+                const Mapping& mapper
+            ) const
             {
-                Space offset(Mask::getRelativeDirections<DIM2 > (i));
-                neighbors += cache(threadIndex + offset);
+                typedef typename BoxReadOnly::ValueType Type;
+                typedef SuperCellDescription<
+                        typename Mapping::SuperCellSize,
+                        math::CT::Int< 1, 1 >,
+                        math::CT::Int< 1, 1 >
+                        > BlockArea;
+                PMACC_AUTO(cache, CachedBox::create < 0, Type > (acc, BlockArea()));
+
+                const Space blockIndex(::alpaka::idx::getIdx<::alpaka::Grid, ::alpaka::Blocks>(acc));
+                const Space block(mapper.getSuperCellIndex(blockIndex));
+                const Space blockCell = block * Mapping::SuperCellSize::toRT();
+                const Space threadIndex(::alpaka::idx::getIdx<::alpaka::Block, ::alpaka::Threads>(acc));
+                PMACC_AUTO(buffRead_shifted, buffRead.shift(blockCell));
+
+                ThreadCollective<BlockArea> collective(threadIndex);
+
+                nvidia::functors::Assign assign;
+                collective(
+                          assign,
+                          cache,
+                          buffRead_shifted
+                          );
+                ::alpaka::block::sync::syncBlockThreads(acc);
+
+                Type neighbors = 0;
+                for (uint32_t i = 1; i < 9; ++i)
+                {
+                    Space offset(Mask::getRelativeDirections<DIM2 > (i));
+                    neighbors += cache(threadIndex + offset);
+                }
+
+                Type isLife = cache(threadIndex);
+                isLife = (bool)(((!isLife)*(1 << (neighbors + 9))) & rule) +
+                        (bool)(((isLife)*(1 << (neighbors))) & rule);
+
+                buffWrite(blockCell + threadIndex) = isLife;
             }
+        };
 
-            Type isLife = cache(threadIndex);
-            isLife = (bool)(((!isLife)*(1 << (neighbors + 9))) & rule) +
-                    (bool)(((isLife)*(1 << (neighbors))) & rule);
-
-            buffWrite(blockCell + threadIndex) = isLife;
-        }
-
-        template<class BoxWriteOnly, class Mapping>
-        __global__ void randomInit(BoxWriteOnly buffWrite,
-                                   uint32_t seed,
-                                   float fraction,
-                                   Mapping mapper)
+        struct RandomInit
         {
-            /* get position in grid in units of SuperCells from blockID */
-            const Space block(mapper.getSuperCellIndex(Space(blockIdx)));
-            /* convert position in unit of cells */
-            const Space blockCell = block * Mapping::SuperCellSize::toRT();
-            /* convert CUDA dim3 to DataSpace<DIM3> */
-            const Space threadIndex(threadIdx);
-            const uint32_t cellIdx = DataSpaceOperations<DIM2>::map(
-                    mapper.getGridSuperCells() * Mapping::SuperCellSize::toRT(),
-                    blockCell + threadIndex);
+            static constexpr uint32_t dim = DIM2;
 
-            /* get uniform random number from seed  */
-            PMACC_AUTO(rng, nvidia::rng::create(
-                                nvidia::rng::methods::Xor(seed, cellIdx),
-                                nvidia::rng::distributions::Uniform_float()));
+            template<
+                typename T_Acc,
+                class BoxWriteOnly,
+                class Mapping
+            >
+            DINLINE void
+            operator()(
+                const T_Acc& acc,
+                BoxWriteOnly& buffWrite,
+                const uint32_t seed,
+                const float fraction,
+                const Mapping& mapper
+            ) const
+            {
+                const Space blockIndex(::alpaka::idx::getIdx<::alpaka::Grid, ::alpaka::Blocks>(acc));
+                /* get position in grid in units of SuperCells from blockID */
+                const Space block(mapper.getSuperCellIndex(blockIndex));
+                /* convert position in unit of cells */
+                const Space blockCell = block * Mapping::SuperCellSize::toRT();
+                /* convert CUDA dim3 to DataSpace<DIM3> */
+                const Space threadIndex(::alpaka::idx::getIdx<::alpaka::Block, ::alpaka::Threads>(acc));
+                const uint32_t cellIdx = DataSpaceOperations<DIM2>::map(
+                        mapper.getGridSuperCells() * Mapping::SuperCellSize::toRT(),
+                        blockCell + threadIndex);
 
-            /* write 1(white) if uniform random number 0<rng<1 is smaller than 'fraction' */
-            buffWrite(blockCell + threadIndex) = (rng() <= fraction);
-        }
-    }
+                /* get uniform random number from seed  */
+                auto gen(::alpaka::rand::generator::createDefault(acc, seed, cellIdx));
+                auto rng(::alpaka::rand::distribution::createUniformReal<float>(acc));
+
+                /* write 1(white) if uniform random number 0<rng<1 is smaller than 'fraction' */
+                buffWrite(blockCell + threadIndex) = (rng(gen) <= fraction);
+            }
+        };
+    } //namespace kernel
 
     template<class MappingDesc>
     struct Evolution
@@ -130,8 +154,8 @@ namespace gol
             GridController<DIM2>& gc = Environment<DIM2>::get().GridController();
             uint32_t seed = gc.getGlobalSize() + gc.getGlobalRank();
 
-            __cudaKernel(kernel::randomInit)
-                    (mapper.getGridDim(), MappingDesc::SuperCellSize::toRT().toDim3())
+            __cudaKernel(kernel::RandomInit)
+                    (mapper.getGridDim(), MappingDesc::SuperCellSize::toRT())
                     (
                      writeBox,
                      seed,
@@ -143,8 +167,8 @@ namespace gol
         void run(const DBox& readBox, const DBox & writeBox)
         {
             AreaMapping < Area, MappingDesc > mapper(mapping);
-            __cudaKernel(kernel::evolution)
-                    (mapper.getGridDim(), MappingDesc::SuperCellSize::toRT().toDim3())
+            __cudaKernel(kernel::Evolution)
+                    (mapper.getGridDim(), MappingDesc::SuperCellSize::toRT())
                     (readBox,
                      writeBox,
                      rule,
