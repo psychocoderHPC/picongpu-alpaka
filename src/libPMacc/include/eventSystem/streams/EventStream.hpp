@@ -25,8 +25,6 @@
 #include "eventSystem/events/CudaEvent.hpp"
 #include "types.h"
 
-#include <cuda_runtime.h>
-
 namespace PMacc
 {
 
@@ -42,9 +40,13 @@ public:
      * Constructor.
      * Creates the cudaStream_t object.
      */
-    EventStream() : stream(NULL)
+    EventStream() :
+        stream(
+            alpaka::AccStream(
+                new Environment<DIM1>::get().DeviceManager().getAccDevice()
+            )
+        )
     {
-        CUDA_CHECK(cudaStreamCreate(&stream));
     }
 
     /**
@@ -54,17 +56,21 @@ public:
     virtual ~EventStream()
     {
         //wait for all kernels in stream to finish
-        CUDA_CHECK(cudaStreamSynchronize(stream));
-        CUDA_CHECK(cudaStreamDestroy(stream));
+        alpaka::wait::wait(*stream.get());
     }
 
     /**
      * Returns the cudaStream_t object associated with this EventStream.
      * @return the internal cuda stream object
      */
-    cudaStream_t getCudaStream() const
+    const alpaka::AccStream& getCudaStream() const
     {
-        return stream;
+        return *stream.get();
+    }
+
+    alpaka::AccStream& getCudaStream()
+    {
+        return *stream.get();
     }
 
     void waitOn(const CudaEvent& ev)
@@ -76,7 +82,7 @@ public:
     }
 
 private:
-    cudaStream_t stream;
+    std::shared_ptr<alpaka::AccStream> stream;
 };
 
 }

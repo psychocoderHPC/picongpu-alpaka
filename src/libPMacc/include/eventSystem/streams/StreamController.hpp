@@ -28,8 +28,6 @@
 #include "types.h"
 #include "Environment.def"
 
-#include <cuda_runtime.h>
-
 #include <string>
 #include <stdexcept>
 #include <vector>
@@ -75,8 +73,10 @@ namespace PMacc
 
             /* This is the single point in PIC where ALL CUDA work must be finished. */
             /* Accessing CUDA objects after this point may fail! */
-            CUDA_CHECK(cudaDeviceSynchronize());
-            CUDA_CHECK(cudaDeviceReset());
+
+            auto&& device = Environment<DIM1>::get().DeviceManager().getAccDevice();
+            ::alpaka::wait::wait(device);
+            ::alpaka::dev::reset(device);
         }
 
         /**
