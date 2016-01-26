@@ -22,8 +22,8 @@
 
 #pragma once
 
-#include <cuSTL/container/view/View.hpp>
-#include <cuSTL/container/DeviceBuffer.hpp>
+//#include <cuSTL/container/view/View.hpp>
+//#include <cuSTL/container/DeviceBuffer.hpp>
 #include <math/vector/Int.hpp>
 #include <math/vector/Size_t.hpp>
 #include <memory/buffers/Buffer.hpp>
@@ -49,8 +49,25 @@ namespace PMacc
     {
     protected:
 
+        template<
+            typename T_DeviceType
+        >
+        using  MemBufCurrentSize = ::alpaka::mem::buf::Buf<
+            T_DeviceType,
+            size_t, // element type
+            alpaka::Dim<DIM1>,
+            alpaka::MemSize // extent type
+        >;
+        
         using  MemBufCurrentSizeDevice = MemBufCurrentSize<
             alpaka::AccDev
+        >;
+
+        using Data1DBuf = ::alpaka::mem::buf::Buf<
+            alpaka::AccDev,
+            TYPE,
+            alpaka::Dim<DIM1>,
+            alpaka::MemSize
         >;
 
         using DataView = ::alpaka::mem::view::ViewPlainPtr<
@@ -84,7 +101,7 @@ namespace PMacc
         {
         };
 
-
+/*
 #define COMMA ,
 
         HINLINE
@@ -111,7 +128,7 @@ namespace PMacc
             return result;
         }
 #undef COMMA
-
+*/
 
         /**
          * Returns offset of elements in every dimension.
@@ -133,12 +150,8 @@ namespace PMacc
          * @{/
          */
         virtual
-        const MemBufCurrentSizeDevice &
-        getMemBufSizeHost() const = 0;
-
-        virtual
         MemBufCurrentSizeDevice &
-        getMemBufSizeDevice() = 0;
+        getMemBufSizeAcc() = 0;
         /// @}
 
         /** Returns a view to the internal alpaka buffer.
@@ -151,6 +164,10 @@ namespace PMacc
 
         virtual DataView & getMemBufView() = 0;
         /// @}
+
+        virtual Data1DBuf const & getMemBufView1D() const = 0;
+
+        virtual Data1DBuf & getMemBufView1D() = 0;
 
         /**
          * Returns pointer to current size on device.

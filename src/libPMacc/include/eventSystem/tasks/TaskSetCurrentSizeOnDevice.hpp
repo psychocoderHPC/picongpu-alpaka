@@ -40,7 +40,7 @@ struct KernelSetValueOnDeviceMemory
     template<
         typename T_Acc
     >
-    ALPAKA_FN_ACC void operator()(
+    DINLINE void operator()(
         const T_Acc&,
         size_t* const pointer,
         const size_t& size
@@ -105,7 +105,7 @@ private:
         );
         auto const exec(
             ::alpaka::exec::create<
-                alpaka::AlpakaAcc<
+                alpaka::Acc<
                     alpaka::Dim<
                         KernelSetValueOnDeviceMemory::dim
                     >

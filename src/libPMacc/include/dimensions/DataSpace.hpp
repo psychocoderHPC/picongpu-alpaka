@@ -58,26 +58,21 @@ namespace PMacc
         }
 
         /**
-         * constructor.
-         * Sets size of all dimensions from cuda dim3.
+         * Constructor from ::alpaka::Vec.
+         *
+         * @param The vector to copy.
          */
-        HDINLINE DataSpace(dim3 value)
+        template<
+            typename TDim,
+            typename TSize,
+            typename = typename std::enable_if<(TDim::value == DIM)>::type
+        >
+        HDINLINE DataSpace( ::alpaka::Vec<TDim, TSize> const & vec )
         {
             for (uint32_t i = 0; i < DIM; ++i)
             {
-                (*this)[i] = *(&(value.x) + i);
-            }
-        }
-
-        /**
-         * constructor.
-         * Sets size of all dimensions from cuda uint3 (e.g. threadIdx/blockIdx)
-         */
-        HDINLINE DataSpace(uint3 value)
-        {
-            for (uint32_t i = 0; i < DIM; ++i)
-            {
-                (*this)[i] = *(&(value.x) + i);
+                // alpaka vectors are z,y,x.
+                (*this)[ DIM - 1u - i] = vec[i];
             }
         }
 
@@ -175,11 +170,6 @@ namespace PMacc
             for (uint32_t i = 0; i < DIM; i++)
                 result[i] = (size_t) (*this)[i];
             return result;
-        }
-
-        HDINLINE operator dim3() const
-        {
-            return this->toDim3();
         }
 
     };

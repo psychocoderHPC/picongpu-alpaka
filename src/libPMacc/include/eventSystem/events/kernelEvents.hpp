@@ -60,7 +60,7 @@
  *
  * @param ... parameters to pass to kernel
  */
-#define PMACC_CUDAPARAMS(...) (__VA_ARGS__);                                   \
+#define PMACC_CUDAPARAMS(...)                                                  \
         auto const workDiv =                                                   \
             ::alpaka::workdiv::WorkDivMembers<                                 \
                 KernelDim,                                                     \
@@ -73,10 +73,10 @@
                     KernelDim::value                                           \
                 >::create(1u)                                                  \
             );                                                                 \
-        auto const exec(                                                      \
+        auto const exec(                                                       \
             ::alpaka::exec::create<                                            \
-                ::PMacc::alpaka::AlpakaAcc<                                    \
-                    kernelDim                                                  \
+                ::PMacc::alpaka::Acc<                                    \
+                    KernelDim                                                  \
                 >                                                              \
             >(                                                                 \
                 workDiv,                                                       \
@@ -110,5 +110,5 @@
     const KernelType theOneAndOnlyKernel;                                      \
     using KernelDim = ::PMacc::alpaka::Dim<KernelType::dim>;                   \
     CUDA_CHECK_KERNEL_MSG(::alpaka::wait::wait(::PMacc::Environment<>::get().DeviceManager().getAccDevice()),"Crash before kernel call"); \
-    PMacc::TaskKernel *taskKernel = PMacc::Environment<>::get().Factory().createTaskKernel(#__VA_ARGS__);     \
+    PMacc::TaskKernel *taskKernel = ::PMacc::Environment<>::get().Factory().createTaskKernel(#__VA_ARGS__);     \
     PMACC_CUDAKERNELCONFIG

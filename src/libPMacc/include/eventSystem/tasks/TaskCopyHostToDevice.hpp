@@ -37,18 +37,18 @@ namespace PMacc
     class DeviceBuffer;
 
     template <class TYPE, unsigned DIM>
-    class TaskCopyHostToDeviceBase : public StreamTask
+    class TaskCopyHostToDevice : public StreamTask
     {
     public:
 
-        TaskCopyHostToDeviceBase(HostBuffer<TYPE, DIM>& src, DeviceBuffer<TYPE, DIM>& dst) :
+        TaskCopyHostToDevice(HostBuffer<TYPE, DIM>& src, DeviceBuffer<TYPE, DIM>& dst) :
         StreamTask()
         {
             this->host =  & src;
             this->device =  & dst;
         }
 
-        virtual ~TaskCopyHostToDeviceBase()
+        virtual ~TaskCopyHostToDevice()
         {
             notify(this->myId, COPYHOST2DEVICE, NULL);
         }
@@ -76,8 +76,8 @@ namespace PMacc
             {
                 ::alpaka::mem::view::copy(
                     this->getEventStream()->getCudaStream(),
-                    this->host->getMemBufView1D(),
                     this->device->getMemBufView1D(),
+                    this->host->getMemBufView1D(),
                     static_cast<alpaka::MemSize>(
                         hostCurrentSize.productOfComponents()
                     )
@@ -87,8 +87,8 @@ namespace PMacc
             {
                 ::alpaka::mem::view::copy(
                     this->getEventStream()->getCudaStream(),
-                    this->host->getMemBufView(),
                     this->device->getMemBufView(),
+                    this->host->getMemBufView(),
                     PMacc::algorithms::precisionCast::precisionCast<
                         alpaka::MemSize
                     >(hostCurrentSize)

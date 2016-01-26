@@ -171,6 +171,24 @@ struct Vector : private T_Storage<T_Type, T_dim>, protected T_Accessor, protecte
         detail::CopyElementWise<Storage::isConst>()(*this,other);
     }
 
+    HDINLINE
+    operator ::alpaka::Vec<
+        alpaka::Dim<dim>,
+        type
+    >() const
+    {
+        using AlpakaVector = ::alpaka::Vec<
+            alpaka::Dim<dim>,
+            type
+        >;
+        AlpakaVector result( AlpakaVector::zeros() ); //todo fix that workaround
+
+        for (int d = 0; d < dim; d++)
+            result[dim - 1 - d] = (*this)[d];
+
+        return result;
+    }
+
     template<
     typename T_OtherType,
     typename T_OtherAccessor,
@@ -478,15 +496,6 @@ struct Vector : private T_Storage<T_Type, T_dim>, protected T_Accessor, protecte
             stream << separator << (*this)[i];
         stream << locale_enclosing_end;
         return stream.str();
-    }
-
-    HDINLINE dim3 toDim3() const
-    {
-        dim3 result;
-        unsigned int* ptr = &result.x;
-        for (int d = 0; d < dim; ++d)
-            ptr[d] = (*this)[d];
-        return result;
     }
 };
 
@@ -849,3 +858,186 @@ struct Functor<math::Abs, TVector>
 
 } //namespace result_of
 } //namespace PMacc
+
+namespace alpaka
+{
+    namespace dim
+    {
+        namespace traits
+        {
+            //#############################################################################
+            //! The Vector dimension get trait specialization.
+            //#############################################################################
+            template<
+                typename T_Type,
+                int T_dim,
+                typename T_Accessor,
+                typename T_Navigator,
+                template<typename, int> class T_Storage
+            >
+            struct DimType<
+                PMacc::math::Vector<T_Type, T_dim, T_Accessor, T_Navigator, T_Storage>>
+            {
+                using type = ::alpaka::dim::DimInt<T_dim>;
+            };
+        }
+    } //namespace dim
+
+    namespace elem
+    {
+        namespace traits
+        {
+            //#############################################################################
+            //! The Vector size type trait specialization.
+            //#############################################################################
+            template<
+                typename T_Type,
+                int T_dim,
+                typename T_Accessor,
+                typename T_Navigator,
+                template<typename, int> class T_Storage
+            >
+            struct ElemType<
+                PMacc::math::Vector<T_Type, T_dim, T_Accessor, T_Navigator, T_Storage>>
+            {
+                using type = T_Type;
+            };
+        }
+    } // namespace elem
+
+    namespace extent
+    {
+        namespace traits
+        {
+            //#############################################################################
+            //! The Vector extent get trait specialization.
+            //#############################################################################
+            template<
+                typename T_Idx,
+                typename T_Type,
+                int T_dim,
+                typename T_Accessor,
+                typename T_Navigator,
+                template<typename, int> class T_Storage>
+            struct GetExtent<
+                T_Idx,
+                PMacc::math::Vector<T_Type, T_dim, T_Accessor, T_Navigator, T_Storage>,
+                typename std::enable_if<(T_dim > T_Idx::value)>::type
+            >
+            {
+                ALPAKA_FN_HOST_ACC static auto getExtent(
+                    PMacc::math::Vector<T_Type, T_dim, T_Accessor, T_Navigator, T_Storage> const & extents)
+                -> T_Type
+                {
+                    return extents[(T_dim - 1u) - T_Idx::value];
+                }
+            };
+
+            //#############################################################################
+            //! The Vector extent set trait specialization.
+            //#############################################################################
+            template<
+                typename T_Idx,
+                typename T_Type,
+                int T_dim,
+                typename T_Accessor,
+                typename T_Navigator,
+                template<typename, int> class T_Storage,
+                typename T_Extent>
+            struct SetExtent<
+                T_Idx,
+                PMacc::math::Vector<T_Type, T_dim, T_Accessor, T_Navigator, T_Storage>,
+                T_Extent,
+                typename std::enable_if<(T_dim > T_Idx::value)>::type
+            >
+            {
+                ALPAKA_FN_HOST_ACC static auto setExtent(
+                    PMacc::math::Vector<T_Type, T_dim, T_Accessor, T_Navigator, T_Storage> & extents,
+                    T_Extent const & extent)
+                -> void
+                {
+                    extents[(T_dim - 1u) - T_Idx::value] = extent;
+                }
+            };
+        }
+    } //namespace extent
+
+    namespace offset
+    {
+        namespace traits
+        {
+            //#############################################################################
+            //! The Vector offset get trait specialization.
+            //#############################################################################
+            template<
+                typename T_Idx,
+                typename T_Type,
+                int T_dim,
+                typename T_Accessor,
+                typename T_Navigator,
+                template<typename, int> class T_Storage>
+            struct GetOffset<
+                T_Idx,
+                PMacc::math::Vector<T_Type, T_dim, T_Accessor, T_Navigator, T_Storage>,
+                typename std::enable_if<(T_dim > T_Idx::value)>::type
+            >
+            {
+                ALPAKA_FN_HOST_ACC static auto getOffset(
+                    PMacc::math::Vector<T_Type, T_dim, T_Accessor, T_Navigator, T_Storage> const & offsets)
+                -> T_Type
+                {
+                    return offsets[(T_dim - 1u) - T_Idx::value];
+                }
+            };
+
+            //#############################################################################
+            //! The Vector offset set trait specialization.
+            //#############################################################################
+            template<
+                typename T_Idx,
+                typename T_Type,
+                int T_dim,
+                typename T_Accessor,
+                typename T_Navigator,
+                template<typename, int> class T_Storage,
+                typename T_Offset>
+            struct SetOffset<
+                T_Idx,
+                PMacc::math::Vector<T_Type, T_dim, T_Accessor, T_Navigator, T_Storage>,
+                T_Offset,
+                typename std::enable_if<(T_dim > T_Idx::value)>::type
+            >
+            {
+                ALPAKA_FN_HOST_ACC static auto setOffset(
+                    PMacc::math::Vector<T_Type, T_dim, T_Accessor, T_Navigator, T_Storage> & offsets,
+                    T_Offset const & offset)
+                -> void
+                {
+                    offsets[(T_dim - 1u) - T_Idx::value] = offset;
+                }
+            };
+        }
+    } //namespace offset
+
+    namespace size
+    {
+        namespace traits
+        {
+            //#############################################################################
+            //! The Vector size type trait specialization.
+            //#############################################################################
+            template<
+                typename T_Type,
+                int T_dim,
+                typename T_Accessor,
+                typename T_Navigator,
+                template<typename, int> class T_Storage>
+            struct SizeType<
+                PMacc::math::Vector<T_Type, T_dim, T_Accessor, T_Navigator, T_Storage>
+            >
+            {
+                using type = T_Type;
+            };
+        }
+    }
+} // namespace alpaka

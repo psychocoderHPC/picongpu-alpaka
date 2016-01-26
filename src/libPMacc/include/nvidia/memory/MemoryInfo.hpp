@@ -51,7 +51,7 @@ public:
    void getMemoryInfo(size_t *free, size_t *total = NULL)
     {
         auto&& device(
-            Environment<DIM1>::get().DeviceManager().getAccDevice()
+            DeviceManager::getInstance().getAccDevice()
         );
 
         if (free != NULL)

@@ -71,7 +71,7 @@ namespace PMacc
         Buffer(DataSpace<DIM> size, DataSpace<DIM> physicalMemorySize) :
         data_space(size), data1D(true), current_size(NULL), m_physicalMemorySize(physicalMemorySize),
         m_memBufCurrentSizeHost(
-            alpaka::mem::buf::alloc
+            ::alpaka::mem::buf::alloc
             <
                 size_t,
                 alpaka::MemSize

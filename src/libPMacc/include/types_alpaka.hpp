@@ -49,7 +49,7 @@ namespace alpaka
     /** get type of an N-dimensional accelerator
      *
      * @tparam T_Dim number of dimensions
-     * @treturn alpaka accelerator type 
+     * @treturn alpaka accelerator type
      */
     template<
         typename T_Dim
@@ -73,7 +73,7 @@ namespace alpaka
     template<
         typename T_Dim
     >
-    using AlpakaAcc = ::alpaka::acc::AccGpuCudaRt<
+    using Acc = ::alpaka::acc::AccGpuCudaRt<
         T_Dim,
         IdxSize
     >;

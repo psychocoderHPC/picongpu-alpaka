@@ -23,7 +23,7 @@
 
 #pragma once
 
-#include "DeviceManager.hpp"
+
 
 #include "eventSystem/EventSystem.hpp"
 #include "particles/tasks/ParticleFactory.hpp"
@@ -39,7 +39,7 @@
 #include "mappings/simulation/Filesystem.hpp"
 
 #include "Environment.def"
-
+#include "DeviceManager.hpp"
 
 namespace PMacc
 {

@@ -39,11 +39,8 @@ namespace PMacc
 
 inline Manager::~Manager( )
 {
-    CUDA_CHECK( cudaGetLastError( ) );
     waitForAllTasks( );
-    CUDA_CHECK( cudaGetLastError( ) );
     delete eventPool;
-    CUDA_CHECK( cudaGetLastError( ) );
 }
 
 inline bool Manager::execute( id_t taskToWait )

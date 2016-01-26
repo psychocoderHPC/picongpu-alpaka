@@ -91,7 +91,7 @@ namespace PMacc
          *
          * @return the associated cuda stream
          */
-        cudaStream_t getCudaStream();
+        alpaka::AccStream& getCudaStream();
 
 
     protected:
