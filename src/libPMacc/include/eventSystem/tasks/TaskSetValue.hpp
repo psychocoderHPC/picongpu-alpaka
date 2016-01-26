@@ -33,8 +33,6 @@
 #include <boost/type_traits/remove_pointer.hpp>
 #include <boost/type_traits.hpp>
 
-#include <cuda_runtime_api.h>
-#include <cuda.h>
 
 namespace PMacc
 {
@@ -82,19 +80,45 @@ getValue(T_Type& value)
 
 }
 
-template <class DataBox, typename T_ValueType, typename Space>
-__global__ void kernelSetValue(DataBox data, const T_ValueType value, const Space size)
+template<
+    uint32_t T_dim
+>
+struct KernelSetValue
 {
-    const Space threadIndex(threadIdx);
-    const Space blockIndex(blockIdx);
-    const Space gridSize(blockDim);
+    static constexpr uint32_t dim = T_dim;
 
-    Space idx(gridSize * blockIndex + threadIndex);
+    template<
+        typename T_Acc,
+        typename T_DataBox,
+        typename T_ValueType
+    >
+    ALPAKA_FN_ACC void operator()(
+        const T_Acc& acc,
+        const DataSpace<T_dim>& size,
+        const T_DataBox& data,
+        const T_ValueType& value
+    ) const
+    {
+        const DataSpace<T_dim> gridKernelIdx(
+            ::alpaka::idx::getIdx<
+                ::alpaka::Grid,
+                ::alpaka::Threads
+            >(
+                acc
+            )
+        );
 
-    if (idx.x() >= size.x())
-        return;
-    data(idx) = taskSetValueHelper::getValue(value);
-}
+        // Early out to prevent out of bounds access.
+        for(uint32_t d = 0; d < dim; ++d)
+        {
+            if(gridKernelIdx[d] >= size[d])
+            {
+                return;
+            }
+        }
+        data(gridKernelIdx) = taskSetValueHelper::getValue(value);
+    }
+};
 
 
 template <class TYPE, unsigned DIM>
@@ -174,13 +198,44 @@ public:
     {
         size_t current_size = this->destination->getCurrentSize();
         const DataSpace<dim> area_size(this->destination->getCurrentDataSpace(current_size));
-        dim3 gridSize = area_size;
+
+        DataSpace<dim> blockSize(DataSpace<dim>::create(1));
+        blockSize.x()=256;
+
+        DataSpace<dim> gridSize(area_size);
 
         /* line wise thread blocks*/
-        gridSize.x = ceil(double(gridSize.x) / 256.);
+        gridSize.x() = ceil(double(gridSize.x()) / double(blockSize.x()));
 
-        kernelSetValue << <gridSize, 256, 0, this->getCudaStream() >> >
-            (this->destination->getDataBox(), this->value, area_size);
+        KernelSetValue<dim> kernel;
+
+        ::alpaka::workdiv::WorkDivMembers<
+            alpaka::Dim<dim>,
+            alpaka::IdxSize
+        > workDiv(
+            gridSize,
+            blockSize,
+            DataSpace<dim>::create(1)
+        );
+
+        auto const exec(
+            ::alpaka::exec::create<
+                alpaka::AlpakaAcc<
+                    alpaka::Dim<dim>
+                >
+            >(
+                workDiv,
+                kernel,
+                area_size,
+                this->destination->getDataBox(),
+                this->value
+            )
+        );
+
+        ::alpaka::stream::enqueue(
+            this->getEventStream()->getCudaStream(),
+            exec
+        );
 
         this->activate();
     }
@@ -198,45 +253,91 @@ public:
     typedef T_ValueType ValueType;
     BOOST_STATIC_CONSTEXPR uint32_t dim = T_dim;
 
+    using  MemBufValueHost = ::alpaka::mem::buf::Buf<
+        alpaka::HostDev,
+        ValueType, // element type
+        alpaka::Dim<DIM1>,
+        alpaka::MemSize // extent type
+    >;
+
     TaskSetValue(DeviceBuffer<ValueType, dim>& dst, const ValueType& value) :
     TaskSetValueBase<ValueType, dim>(dst, value), valuePointer_host(NULL)
     {
+        valuePointer_host.reset(
+            new MemBufValueHost(
+                alpaka::mem::buf::alloc<
+                    ValueType,
+                    alpaka::MemSize
+                >(
+                    Environment<>::get().DeviceManager().getHostDevice(),
+                    static_cast<alpaka::MemSize>(1u)
+                )
+            )
+        );
+        *::alpaka::mem::view::getPtrNative(*valuePointer_host.get()) = this->value;
     }
 
     virtual ~TaskSetValue()
     {
-        if (valuePointer_host != NULL)
-        {
-            CUDA_CHECK(cudaFreeHost(valuePointer_host));
-            valuePointer_host = NULL;
-        }
     }
 
     void init()
     {
+        ::alpaka::mem::view::copy(
+            this->getEventStream()->getCudaStream(),
+            this->destination->getMemBufView(),
+            *this->valuePointer_host.get(),
+            static_cast<alpaka::MemSize>(1u)
+        );
+
         size_t current_size = this->destination->getCurrentSize();
         const DataSpace<dim> area_size(this->destination->getCurrentDataSpace(current_size));
-        dim3 gridSize = area_size;
+
+        DataSpace<dim> blockSize(DataSpace<dim>::create(1));
+        blockSize.x()=256;
+
+        DataSpace<dim> gridSize(area_size);
 
         /* line wise thread blocks*/
-        gridSize.x = ceil(double(gridSize.x) / 256.);
+        gridSize.x() = ceil(double(gridSize.x()) / double(blockSize.x()));
 
-        ValueType* devicePtr = this->destination->getPointer();
+        KernelSetValue<dim> kernel;
 
-        CUDA_CHECK(cudaMallocHost(&valuePointer_host, sizeof (ValueType)));
-        *valuePointer_host = this->value; //copy value to new place
+        ::alpaka::workdiv::WorkDivMembers<
+            alpaka::Dim<dim>,
+            alpaka::IdxSize
+        > workDiv(
+            gridSize,
+            blockSize,
+            DataSpace<dim>::create(1)
+        );
 
-        CUDA_CHECK(cudaMemcpyAsync(
-                                   devicePtr, valuePointer_host, sizeof (ValueType),
-                                   cudaMemcpyHostToDevice, this->getCudaStream()));
-        kernelSetValue << <gridSize, 256, 0, this->getCudaStream() >> >
-            (this->destination->getDataBox(), devicePtr, area_size);
+        auto const exec(
+            ::alpaka::exec::create<
+                alpaka::AlpakaAcc<
+                    alpaka::Dim<dim>
+                >
+            >(
+                workDiv,
+                kernel,
+                area_size,
+                this->destination->getDataBox(),
+                ::alpaka::mem::view::getPtrNative(
+                    this->destination->getMemBufView()
+                )
+            )
+        );
+
+        ::alpaka::stream::enqueue(
+            this->getEventStream()->getCudaStream(),
+            exec
+        );
 
         this->activate();
     }
 
 private:
-    ValueType *valuePointer_host;
+    std::unique_ptr<ValueType> valuePointer_host;
 
 };
 
