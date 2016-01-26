@@ -40,19 +40,14 @@ template <class TYPE, unsigned DIM>
 class DeviceBufferIntern : public DeviceBuffer<TYPE, DIM>
 {
 public:
-    using DataBuf = alpaka::mem::buf::Buf<
+    using DataBuf = ::alpaka::mem::buf::Buf<
         alpaka::AccDev,
         TYPE,
         alpaka::Dim<DIM>,
         alpaka::MemSize
     >;
 
-    using Data1DBuf = ::alpaka::mem::view::ViewPlainPtr<
-        alpaka::AccDev,
-        TYPE,
-        alpaka::Dim<DIM1>,
-        alpaka::MemSize
-     >;
+    using Data1DBuf = typename DeviceBuffer<TYPE, DIM>::Data1DBuf;
 
     using DataView = typename PMacc::DeviceBuffer<
         TYPE,
@@ -114,8 +109,10 @@ public:
         m_dataView.reset(
             new DataView(
                 &(source.getDataBox()(offset)),
-                *::alpaka::mem::view::getPtrDev(dataBuffer),
-                size,
+                Environment<>::get().DeviceManager().getAccDevice(),
+                PMacc::algorithms::precisionCast::precisionCast<alpaka::MemSize>(
+                    size
+                ),
                 pitchVector
             )
         );
@@ -140,7 +137,7 @@ public:
             {
                 ///@todo this call ignores the vent system
                 auto&& stream(Environment<>::get().TransactionManager().getEventStream(ITask::TASK_CUDA)->getCudaStream());
-                alpaka::mem::view::set(
+                ::alpaka::mem::view::set(
                     stream,
                     this->getMemBufView(),
                     0,
@@ -176,7 +173,7 @@ public:
 
         if (DIM == DIM1)
         {
-            return (TYPE*) (this->getBasePointer() + this->offset[0];
+            return (TYPE*) (this->getBasePointer() + this->offset[0]);
         }
         else if (DIM == DIM2)
         {
@@ -258,7 +255,7 @@ public:
         {
             throw std::runtime_error("Buffer has no size on device!, currentSize is only stored on host side.");
         }
-        return *m_memBufCurrentSizeDevice.get();
+        return *m_memBufCurrentSizeDevice;
     }
 
     MemBufCurrentSizeDevice &
@@ -269,21 +266,37 @@ public:
         {
             throw std::runtime_error("Buffer has no size on device!, currentSize is only stored on host side.");
         }
-        return *m_memBufCurrentSizeDevice.get();
+        return *m_memBufCurrentSizeDevice;
     }
 
     DataView const &
     getMemBufView() const
     {
         __startOperation(ITask::TASK_CUDA);
-        return *m_dataView.get();
+        return *m_dataView;
     }
 
     DataView &
     getMemBufView()
     {
         __startOperation(ITask::TASK_CUDA);
-        return *m_dataView.get();
+        return *m_dataView;
+    }
+
+    Data1DBuf const &
+    getMemBufView1D() const
+    {
+        __startOperation(ITask::TASK_CUDA);
+        assert(m_data1DBuf);
+        return *m_data1DBuf;
+    }
+
+    Data1DBuf &
+    getMemBufView1D()
+    {
+        __startOperation(ITask::TASK_CUDA);
+        assert(m_data1DBuf);
+        return *m_data1DBuf;
     }
 
     void copyFrom(HostBuffer<TYPE, DIM>& other)
@@ -323,15 +336,17 @@ private:
         log<ggLog::MEMORY>("Create device %1%D data: %2% MiB") % DIM % (this->getDataSpace().productOfComponents() * sizeof(TYPE) / 1024 / 1024 );
 
         m_dataBuf.reset(
-            new ::alpaka::mem::buf::alloc<TYPE, alpaka::MemSize>(
-                Environment<>::get().DeviceManager().getAccDevice(),
-                PMacc::algorithms::precisionCast::precisionCast<alpaka::MemSize>(
-                    this->getDataSpace()
+            new DataBuf(
+                ::alpaka::mem::buf::alloc<TYPE, alpaka::MemSize>(
+                    Environment<>::get().DeviceManager().getAccDevice(),
+                    PMacc::algorithms::precisionCast::precisionCast<alpaka::MemSize>(
+                        this->getDataSpace()
+                    )
                 )
             )
         );
 
-        auto&& dataBuffer(*m_dataBuf.get());
+        auto&& dataBuffer(*m_dataBuf);
 
         PMacc::math::Vector<alpaka::MemSize,DIM> pitchVector;
         pitchVector.x() = ::alpaka::mem::view::getPitchBytes< DIM - 1 >(dataBuffer);
@@ -343,8 +358,10 @@ private:
         m_dataView.reset(
             new DataView(
                 ::alpaka::mem::view::getPtrNative(dataBuffer),
-                *::alpaka::mem::view::getPtrDev(dataBuffer),
-                ::alpaka::extent::getExtent(dataBuffer),
+                Environment<>::get().DeviceManager().getAccDevice(),
+                PMacc::algorithms::precisionCast::precisionCast<alpaka::MemSize>(
+                    this->getDataSpace()
+                ),
                 pitchVector
             )
         );
@@ -361,15 +378,17 @@ private:
         log<ggLog::MEMORY>("Create device 1D data: %1% MiB") % (this->getDataSpace().productOfComponents() * sizeof (TYPE) / 1024 / 1024 );
 
         m_data1DBuf.reset(
-            new ::alpaka::mem::buf::alloc<TYPE, alpaka::MemSize>(
-                Environment<>::get().DeviceManager().getAccDevice(),
-                static_cast<alpaka::MemSize>(
-                    this->getDataSpace().productOfComponents()
+            new Data1DBuf(
+                ::alpaka::mem::buf::alloc<TYPE, alpaka::MemSize>(
+                    Environment<>::get().DeviceManager().getAccDevice(),
+                    static_cast<alpaka::MemSize>(
+                        this->getDataSpace().productOfComponents()
+                    )
                 )
             )
         );
 
-        auto&& dataBuffer(*m_data1DBuf.get());
+        auto&& dataBuffer(*m_data1DBuf);
 
         PMacc::math::Vector<alpaka::MemSize,DIM> pitchVector;
         pitchVector.x() = this->getDataSpace()[0] * sizeof (TYPE);
@@ -381,7 +400,7 @@ private:
         m_dataView.reset(
             new DataView(
                 ::alpaka::mem::view::getPtrNative(dataBuffer),
-                *::alpaka::mem::view::getPtrDev(dataBuffer),
+                Environment<>::get().DeviceManager().getAccDevice(),
                 PMacc::algorithms::precisionCast::precisionCast<alpaka::MemSize>(
                     this->getDataSpace()
                 ),
@@ -400,15 +419,16 @@ private:
         if (sizeOnDevice)
         {
             m_memBufCurrentSizeDevice.reset(
-                alpaka::mem::buf::alloc
-                <
-                    size_t,
-                    alpaka::MemSize
-                >(
-                    Environment<>::get().DeviceManager().getAccDevice(),
-                    static_cast<alpaka::MemSize>(1u)
+                new MemBufCurrentSizeDevice(
+                    ::alpaka::mem::buf::alloc<
+                      size_t,
+                      alpaka::MemSize
+                    >(
+                        Environment<>::get().DeviceManager().getAccDevice(),
+                        static_cast<alpaka::MemSize>(1u)
+                    )
                 )
-            )
+            );
         }
         setCurrentSize(this->getDataSpace().productOfComponents());
     }

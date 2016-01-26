@@ -41,19 +41,14 @@ class HostBufferIntern : public HostBuffer<TYPE, DIM>
 {
 public:
 
-    using DataBuf = alpaka::mem::buf::Buf<
+    using DataBuf = ::alpaka::mem::buf::Buf<
         alpaka::HostDev,
         TYPE,
         alpaka::Dim<DIM>,
         alpaka::MemSize
     >;
 
-    using Data1DBuf = ::alpaka::mem::view::ViewPlainPtr<
-        alpaka::HostDev,
-        TYPE,
-        alpaka::Dim<DIM1>,
-        alpaka::MemSize
-     >;
+    using Data1DBuf = typename HostBuffer<TYPE, DIM>::Data1DBuf;
 
     using DataView = typename PMacc::HostBuffer<
         TYPE,
@@ -68,7 +63,7 @@ public:
      */
     HostBufferIntern(DataSpace<DIM> size) :
     HostBuffer<TYPE, DIM>(size, size),
-    pointer(NULL),ownPointer(true)
+    ownPointer(true)
     {
         /* always create 1d buffer to be sure that the PMacc definition for
          * host buffer is full filled
@@ -76,24 +71,33 @@ public:
          * *PMacc definition:* a line in a host buffer is not padded
          */
         m_data1DBuf.reset(
-            new ::alpaka::mem::buf::alloc<TYPE, alpaka::MemSize>(
-                Environment<>::get().DeviceManager().getAccDevice(),
-                static_cast<alpaka::MemSize>(
-                    this->getDataSpace().productOfComponents()
+            new Data1DBuf(
+                ::alpaka::mem::buf::alloc<TYPE, alpaka::MemSize>(
+                    Environment<>::get().DeviceManager().getHostDevice(),
+                    static_cast<alpaka::MemSize>(
+                        this->getDataSpace().productOfComponents()
+                    )
                 )
             )
         );
 
-        auto&& dataBuffer(*m_data1DBuf.get());
+        auto&& dataBuffer(*m_data1DBuf);
+
+        PMacc::math::Vector<alpaka::MemSize,DIM> pitchVector;
+        pitchVector.x() = this->getDataSpace()[0] * sizeof (TYPE);
+
+        for( uint32_t d = 1 ; d < DIM; ++d)
+            pitchVector[ d ] = pitchVector[ d - 1 ] * this->getDataSpace()[ d ];
+
         /* create view which is used in the tasks */
         m_dataView.reset(
             new DataView(
                 ::alpaka::mem::view::getPtrNative(dataBuffer),
-                *::alpaka::mem::view::getPtrDev(dataBuffer),
+                Environment<>::get().DeviceManager().getHostDevice(),
                 PMacc::algorithms::precisionCast::precisionCast<alpaka::MemSize>(
                     this->getDataSpace()
                 ),
-                this->getDataSpace()[0] * sizeof (TYPE)
+                pitchVector
             )
         );
 
@@ -147,7 +151,7 @@ public:
     TYPE* getPointer()
     {
         __startOperation(ITask::TASK_HOST);
-        return *::alpaka::mem::view::getPtrNative(this->getMemBufView());
+        return ::alpaka::mem::view::getPtrNative(this->getMemBufView());
     }
 
     void copyFrom(DeviceBuffer<TYPE, DIM>& other)
@@ -162,20 +166,6 @@ public:
         this->setCurrentSize(this->getDataSpace().productOfComponents());
         if (!preserveData)
         {
-            if(ownPointer)
-            {
-                ///@todo this call ignores the vent system
-                auto&& stream(Environment<>::get().TransactionManager().getEventStream(ITask::TASK_CUDA)->getCudaStream());
-                alpaka::mem::view::set(
-                    stream,
-                    this->getMemBufView(),
-                    0,
-                    this->getDataSpace()
-                );
-                ::alpaka::wait::wait(stream);
-            }
-            else
-            {
                 TYPE value;
                 /* using `uint8_t` for byte-wise looping through tmp var value of `TYPE` */
                 uint8_t* valuePtr = (uint8_t*)&value;
@@ -185,7 +175,6 @@ public:
                 }
                 /* set value with zero-ed `TYPE` */
                 setValue(value);
-            }
         }
     }
 
@@ -214,14 +203,30 @@ public:
     getMemBufView() const
     {
         __startOperation(ITask::TASK_HOST);
-        return m_dataView;
+        return *m_dataView;
     }
 
     DataView &
     getMemBufView()
     {
         __startOperation(ITask::TASK_HOST);
-        return m_dataView;
+        return *m_dataView;
+    }
+
+    Data1DBuf const &
+    getMemBufView1D() const
+    {
+        __startOperation(ITask::TASK_CUDA);
+        assert(m_data1DBuf);
+        return *m_data1DBuf;
+    }
+
+    Data1DBuf &
+    getMemBufView1D()
+    {
+        __startOperation(ITask::TASK_CUDA);
+        assert(m_data1DBuf);
+        return *m_data1DBuf;
     }
 
 private:

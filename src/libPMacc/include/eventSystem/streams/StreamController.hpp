@@ -74,7 +74,7 @@ namespace PMacc
             /* This is the single point in PIC where ALL CUDA work must be finished. */
             /* Accessing CUDA objects after this point may fail! */
 
-            auto&& device = Environment<DIM1>::get().DeviceManager().getAccDevice();
+            auto&& device = DeviceManager::getInstance().getAccDevice();
             ::alpaka::wait::wait(device);
             ::alpaka::dev::reset(device);
         }

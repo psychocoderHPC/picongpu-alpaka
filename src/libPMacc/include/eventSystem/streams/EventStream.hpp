@@ -42,8 +42,8 @@ public:
      */
     EventStream() :
         stream(
-            alpaka::AccStream(
-                new Environment<DIM1>::get().DeviceManager().getAccDevice()
+            new alpaka::AccStream(
+                DeviceManager::getInstance().getAccDevice()
             )
         )
     {
@@ -56,28 +56,28 @@ public:
     virtual ~EventStream()
     {
         //wait for all kernels in stream to finish
-        alpaka::wait::wait(*stream.get());
+        ::alpaka::wait::wait(*stream);
     }
 
     /**
      * Returns the cudaStream_t object associated with this EventStream.
      * @return the internal cuda stream object
      */
-    const alpaka::AccStream& getCudaStream() const
+    const alpaka::AccStream getCudaStream() const
     {
-        return *stream.get();
+        return *stream;
     }
 
     alpaka::AccStream& getCudaStream()
     {
-        return *stream.get();
+        return *stream;
     }
 
     void waitOn(const CudaEvent& ev)
     {
-        if (this->stream != ev.getStream())
+        if (*this->stream != ev.getStream())
         {
-            CUDA_CHECK(cudaStreamWaitEvent(this->getCudaStream(), *ev, 0));
+            ::alpaka::wait::wait(*this->stream, *ev);
         }
     }
 

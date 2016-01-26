@@ -23,6 +23,7 @@
 
 #pragma once
 
+#include "types.h"
 #include "dimensions/DataSpace.hpp"
 #include "mappings/simulation/EnvironmentController.hpp"
 #include "memory/buffers/DeviceBuffer.hpp"
@@ -92,7 +93,7 @@ struct KernelSetValue
         typename T_DataBox,
         typename T_ValueType
     >
-    ALPAKA_FN_ACC void operator()(
+    DINLINE void operator()(
         const T_Acc& acc,
         const DataSpace<T_dim>& size,
         const T_DataBox& data,
@@ -220,7 +221,7 @@ public:
 
         auto const exec(
             ::alpaka::exec::create<
-                alpaka::AlpakaAcc<
+                alpaka::Acc<
                     alpaka::Dim<dim>
                 >
             >(
@@ -265,7 +266,7 @@ public:
     {
         valuePointer_host.reset(
             new MemBufValueHost(
-                alpaka::mem::buf::alloc<
+                ::alpaka::mem::buf::alloc<
                     ValueType,
                     alpaka::MemSize
                 >(
@@ -274,7 +275,7 @@ public:
                 )
             )
         );
-        *::alpaka::mem::view::getPtrNative(*valuePointer_host.get()) = this->value;
+        *::alpaka::mem::view::getPtrNative(*valuePointer_host) = this->value;
     }
 
     virtual ~TaskSetValue()
@@ -286,7 +287,7 @@ public:
         ::alpaka::mem::view::copy(
             this->getEventStream()->getCudaStream(),
             this->destination->getMemBufView(),
-            *this->valuePointer_host.get(),
+            *this->valuePointer_host,
             static_cast<alpaka::MemSize>(1u)
         );
 
@@ -314,7 +315,7 @@ public:
 
         auto const exec(
             ::alpaka::exec::create<
-                alpaka::AlpakaAcc<
+                alpaka::Acc<
                     alpaka::Dim<dim>
                 >
             >(

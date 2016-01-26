@@ -78,7 +78,7 @@ public:
 
 
 private:
-    const PMACC_ALIGN(threadId, int);
+    PMACC_ALIGN(threadId, const int);
 
 };
 

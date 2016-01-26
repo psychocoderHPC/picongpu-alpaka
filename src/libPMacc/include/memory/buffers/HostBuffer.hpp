@@ -22,7 +22,7 @@
 
 #pragma once
 
-#include <cuSTL/container/HostBuffer.hpp>
+//#include <cuSTL/container/HostBuffer.hpp>
 #include "memory/buffers/Buffer.hpp"
 #include "dimensions/DataSpace.hpp"
 
@@ -30,6 +30,9 @@ namespace PMacc
 {
 
     class EventTask;
+
+    template <class TYPE, unsigned DIM>
+    class Buffer;
 
     template <class TYPE, unsigned DIM>
     class DeviceBuffer;
@@ -51,6 +54,12 @@ namespace PMacc
             alpaka::MemSize
          >;
 
+        using Data1DBuf = ::alpaka::mem::buf::Buf<
+            alpaka::HostDev,
+            TYPE,
+            alpaka::Dim<DIM1>,
+            alpaka::MemSize
+        >;
 
         /**
          * Returns a view to the internal alpaka buffer.
@@ -67,6 +76,14 @@ namespace PMacc
         DataView &
         getMemBufView() = 0;
         ///@}
+
+        virtual
+        Data1DBuf const &
+        getMemBufView1D() const = 0;
+
+        virtual
+        Data1DBuf &
+        getMemBufView1D() = 0;
 
         /**
          * Copies the data from the given DeviceBuffer to this HostBuffer.
@@ -92,7 +109,7 @@ namespace PMacc
         virtual ~HostBuffer()
         {
         };
-
+/*
         HINLINE
         container::HostBuffer<TYPE, DIM>
         cartBuffer()
@@ -109,7 +126,7 @@ namespace PMacc
             *result.refCount = 2;
             return result;
         }
-
+*/
     protected:
 
         /** Constructor.

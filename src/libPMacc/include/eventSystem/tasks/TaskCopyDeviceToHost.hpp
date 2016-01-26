@@ -42,14 +42,14 @@ namespace PMacc
     {
     public:
 
-        TaskCopyDeviceToHostBase( DeviceBuffer<TYPE, DIM>& src, HostBuffer<TYPE, DIM>& dst) :
+        TaskCopyDeviceToHost( DeviceBuffer<TYPE, DIM>& src, HostBuffer<TYPE, DIM>& dst) :
         StreamTask()
         {
             this->host =  & dst;
             this->device =  & src;
         }
 
-        virtual ~TaskCopyDeviceToHostBase()
+        virtual ~TaskCopyDeviceToHost()
         {
             notify(this->myId, COPYDEVICE2HOST, NULL);
         }

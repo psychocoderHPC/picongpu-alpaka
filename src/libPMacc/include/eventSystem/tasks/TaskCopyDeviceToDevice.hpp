@@ -39,14 +39,14 @@ namespace PMacc
     {
     public:
 
-        TaskCopyDeviceToDeviceBase( DeviceBuffer<TYPE, DIM>& src, DeviceBuffer<TYPE, DIM>& dst) :
+        TaskCopyDeviceToDevice( DeviceBuffer<TYPE, DIM>& src, DeviceBuffer<TYPE, DIM>& dst) :
         StreamTask()
         {
             this->source = & src;
             this->destination =  & dst;
         }
 
-        virtual ~TaskCopyDeviceToDeviceBase()
+        virtual ~TaskCopyDeviceToDevice()
         {
             notify(this->myId, COPYDEVICE2DEVICE, NULL);
         }

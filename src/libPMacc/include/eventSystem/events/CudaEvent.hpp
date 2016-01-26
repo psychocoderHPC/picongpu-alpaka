@@ -24,6 +24,7 @@
 #pragma once
 
 #include "types.h"
+#include "DeviceManager.hpp"
 
 namespace PMacc
 {
@@ -38,7 +39,7 @@ private:
     using AlpakaEvent = ::alpaka::event::Event<alpaka::AccStream>;
 
     std::shared_ptr<AlpakaEvent> event;
-    std::shared_ptr<alpaka::AccStream> stream;
+    alpaka::AccStream* stream;
     /* state if event is recorded */
     bool isRecorded;
     bool isValid;
@@ -78,7 +79,7 @@ public:
         ev.isValid = true;
         ev.event.reset(
             new AlpakaEvent(
-                Environment<DIM1>::get().DeviceManager().getAccDevice()
+                DeviceManager::getInstance().getAccDevice()
             )
         );
         return ev;
@@ -87,9 +88,9 @@ public:
     /**
      * free allocated memory
      */
-    static void destroy(const CudaEvent& ev)
+    static void destroy(CudaEvent& ev)
     {
-        delete(ev.event);
+        ev.event.reset();
     }
 
     /**
@@ -100,13 +101,13 @@ public:
     const AlpakaEvent& operator*() const
     {
         assert(isValid);
-        return *event.get();
+        return *event;
     }
 
     AlpakaEvent& operator*()
     {
         assert(isValid);
-        return *event.get();
+        return *event;
     }
 
 
@@ -118,7 +119,7 @@ public:
     bool isFinished() const
     {
         assert(isValid);
-        return alpaka::event::test(*event.get());
+        return ::alpaka::event::test(*event);
     }
 
 
@@ -127,16 +128,16 @@ public:
      *
      * @return native cuda stream
      */
-    const alpaka::AccStream& getStream() const
-    {
-        assert(isRecorded);
-        return *stream.get();
-    }
-
     alpaka::AccStream& getStream()
     {
         assert(isRecorded);
-        return *stream.get();
+        return *stream;
+    }
+
+    const alpaka::AccStream& getStream() const
+    {
+        assert(isRecorded);
+        return *stream;
     }
 
     /**
@@ -144,13 +145,13 @@ public:
      *
      * @param stream native cuda stream
      */
-    void recordEvent(const alpaka::AccStream& stream)
+    void recordEvent(alpaka::AccStream& stream)
     {
         /* disallow double recording */
         assert(isRecorded==false);
         isRecorded = true;
-        this->stream = stream;
-        alpaka::stream::enqueue(*stream.get(), *event.get());
+        this->stream = &stream;
+        ::alpaka::stream::enqueue(*this->stream, *event);
     }
 
 };

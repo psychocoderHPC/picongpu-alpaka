@@ -42,7 +42,11 @@ namespace PMacc
         void init(std::size_t uiIdx)
         {
             m_hostDev.reset(
-                new alpaka::HostDev( alpaka::dev::cpu::getDev( ) )
+                new alpaka::HostDev(
+                    ::alpaka::dev::DevManCpu::getDevByIdx(
+                        0u
+                    )
+                )
             );
 
             auto const uiNumDevices(
@@ -63,8 +67,8 @@ namespace PMacc
                 try
                 {
                     m_accDev.reset(
-                        new AlpakaAccDev(
-                            alpaka::dev::DevMan<AlpakaAccDev>::getDevByIdx(
+                        new alpaka::AccDev(
+                            ::alpaka::dev::DevMan<alpaka::AccDev>::getDevByIdx(
                                 iDevice
                             )
                         )
@@ -90,12 +94,12 @@ namespace PMacc
          */
         alpaka::AccDev const & getAccDevice( ) const
         {
-            return *m_accDev.get( );
+            return *m_accDev;
         }
 
         alpaka::AccDev & getAccDevice( )
         {
-            return *m_accDev.get( );
+            return *m_accDev;
         }
         //@}
 
@@ -106,12 +110,12 @@ namespace PMacc
          */
         alpaka::HostDev const & getHostDevice( ) const
         {
-            return *m_hostDev.get( );
+            return *m_hostDev;
         }
 
         alpaka::HostDev & getHostDevice( )
         {
-            return *m_hostDev.get( );
+            return *m_hostDev;
         }
         //@}
 

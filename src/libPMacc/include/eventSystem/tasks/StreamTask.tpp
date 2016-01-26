@@ -80,7 +80,7 @@ inline void StreamTask::setEventStream( EventStream* newStream )
     this->stream = newStream;
 }
 
-inline cudaStream_t StreamTask::getCudaStream( )
+inline alpaka::AccStream& StreamTask::getCudaStream( )
 {
     if ( stream == NULL )
         stream = Environment<>::get( ).TransactionManager( ).getEventStream( TASK_CUDA );
