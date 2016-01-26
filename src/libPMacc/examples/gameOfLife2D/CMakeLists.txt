@@ -150,6 +150,7 @@ ALPAKA_ADD_EXECUTABLE(
 # Set the link libraries for this library (adds libs, include directories, defines and compile options).
 TARGET_LINK_LIBRARIES(
     "gameOfLife"
+    PUBLIC ${_GOL_LIBRARIES_PRIVATE}
     PUBLIC "alpaka")
 
 SET_TARGET_PROPERTIES(${_PROJECT_NAME} PROPERTIES FOLDER "example")
