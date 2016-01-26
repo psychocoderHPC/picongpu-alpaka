@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2016 Rene Widera
+ * Copyright 2014-2016 Rene Widera, Benjamin Worpitz
  *
  * This file is part of libPMacc.
  *
@@ -24,7 +24,6 @@
 #pragma once
 
 #include "types.h"
-#include <cuda_runtime.h>
 
 namespace PMacc
 {
@@ -36,8 +35,10 @@ class CudaEvent
 {
 private:
 
-    cudaEvent_t event;
-    cudaStream_t stream;
+    using AlpakaEvent = ::alpaka::event::Event<alpaka::AccStream>;
+
+    std::shared_ptr<AlpakaEvent> event;
+    std::shared_ptr<alpaka::AccStream> stream;
     /* state if event is recorded */
     bool isRecorded;
     bool isValid;
@@ -75,7 +76,11 @@ public:
     {
         CudaEvent ev;
         ev.isValid = true;
-        CUDA_CHECK(cudaEventCreateWithFlags(&(ev.event), cudaEventDisableTiming));
+        ev.event.reset(
+            new AlpakaEvent(
+                Environment<DIM1>::get().DeviceManager().getAccDevice()
+            )
+        );
         return ev;
     }
 
@@ -84,8 +89,7 @@ public:
      */
     static void destroy(const CudaEvent& ev)
     {
-        CUDA_CHECK(cudaEventSynchronize(ev.event));
-        CUDA_CHECK(cudaEventDestroy(ev.event));
+        delete(ev.event);
     }
 
     /**
@@ -93,11 +97,18 @@ public:
      *
      * @return native cuda event
      */
-    cudaEvent_t operator*() const
+    const AlpakaEvent& operator*() const
     {
         assert(isValid);
-        return event;
+        return *event.get();
     }
+
+    AlpakaEvent& operator*()
+    {
+        assert(isValid);
+        return *event.get();
+    }
+
 
     /**
      * check whether the event is finished
@@ -107,7 +118,7 @@ public:
     bool isFinished() const
     {
         assert(isValid);
-        return cudaEventQuery(event) == cudaSuccess;
+        return alpaka::event::test(*event.get());
     }
 
 
@@ -116,10 +127,16 @@ public:
      *
      * @return native cuda stream
      */
-    cudaStream_t getStream() const
+    const alpaka::AccStream& getStream() const
     {
         assert(isRecorded);
-        return stream;
+        return *stream.get();
+    }
+
+    alpaka::AccStream& getStream()
+    {
+        assert(isRecorded);
+        return *stream.get();
     }
 
     /**
@@ -127,13 +144,13 @@ public:
      *
      * @param stream native cuda stream
      */
-    void recordEvent(cudaStream_t stream)
+    void recordEvent(const alpaka::AccStream& stream)
     {
         /* disallow double recording */
         assert(isRecorded==false);
         isRecorded = true;
         this->stream = stream;
-        CUDA_CHECK(cudaEventRecord(event, stream));
+        alpaka::stream::enqueue(*stream.get(), *event.get());
     }
 
 };

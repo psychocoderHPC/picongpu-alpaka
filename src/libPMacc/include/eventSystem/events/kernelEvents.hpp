@@ -24,10 +24,7 @@
 
 #include "dimensions/DataSpace.hpp"
 #include "eventSystem/EventSystem.hpp"
-#include "ppFunctions.hpp"
 #include "types.h"
-
-#include <boost/preprocessor/control/if.hpp>
 
 /* No namespace in this file since we only declare macro defines */
 
@@ -35,10 +32,18 @@
  * this flag must set by the compiler or inside of the Makefile
  */
 #if (PMACC_SYNC_KERNEL  == 1)
-    #define CUDA_CHECK_KERNEL_MSG(...)  CUDA_CHECK_MSG(__VA_ARGS__)
+    #define CUDA_CHECK_KERNEL_MSG(COMMAND, MSG)                                \
+        try                                                                    \
+        {                                                                      \
+            COMMAND;                                                           \
+        }                                                                      \
+        catch(...)                                                             \
+        {                                                                      \
+            std::cerr<<MSG<<std::endl;                                         \
+        }
 #else
     /*no synchronize and check of kernel calls*/
-    #define CUDA_CHECK_KERNEL_MSG(...)  ;
+    #define CUDA_CHECK_KERNEL_MSG(COMMAND, MSG)
 #endif
 
 /** Call activate kernel from taskKernel.
@@ -46,10 +51,9 @@
  *  and after activation.
  */
 #define PMACC_ACTIVATE_KERNEL                                                           \
-        CUDA_CHECK_KERNEL_MSG(cudaGetLastError( ),"Last error after kernel launch");    \
-        CUDA_CHECK_KERNEL_MSG(cudaDeviceSynchronize(),"Crash after kernel launch");     \
+        CUDA_CHECK_KERNEL_MSG(::alpaka::wait::wait(::PMacc::Environment<>::get().DeviceManager().getAccDevice()),"Crash after kernel launch");     \
         taskKernel->activateChecks();                                                   \
-        CUDA_CHECK_KERNEL_MSG(cudaDeviceSynchronize(),"Crash after kernel activation");
+        CUDA_CHECK_KERNEL_MSG(::alpaka::wait::wait(::PMacc::Environment<>::get().DeviceManager().getAccDevice()),"Crash after kernel activation");
 
 /**
  * Appends kernel arguments to generated code and activates kernel task.
@@ -57,6 +61,30 @@
  * @param ... parameters to pass to kernel
  */
 #define PMACC_CUDAPARAMS(...) (__VA_ARGS__);                                   \
+        auto const workDiv =                                                   \
+            ::alpaka::workdiv::WorkDivMembers<                                 \
+                KernelDim,                                                     \
+                ::PMacc::alpaka::IdxSize                                       \
+            >(                                                                 \
+                gridExtent,                                                    \
+                blockExtent,                                                   \
+                ::PMacc::math::Vector<                                         \
+                    ::PMacc::alpaka::IdxSize,                                  \
+                    KernelDim::value                                           \
+                >::create(1u)                                                  \
+            );                                                                 \
+        auto const exec(                                                      \
+            ::alpaka::exec::create<                                            \
+                ::PMacc::alpaka::AlpakaAcc<                                    \
+                    kernelDim                                                  \
+                >                                                              \
+            >(                                                                 \
+                workDiv,                                                       \
+                theOneAndOnlyKernel,                                           \
+                __VA_ARGS__                                                    \
+            )                                                                  \
+        );                                                                     \
+        ::alpaka::stream::enqueue(taskKernel->getEventStream()->getCudaStream(), exec); \
         PMACC_ACTIVATE_KERNEL                                                  \
     }   /*this is used if call is EventTask.waitforfinished();*/
 
@@ -67,17 +95,20 @@
  * @param block sizes of block on gpu
  * @param ... amount of shared memory for the kernel (optional)
  */
-#define PMACC_CUDAKERNELCONFIG(grid,block,...) <<<(grid),(block),              \
-    /*we need +0 if VA_ARGS is empty, because we must put in a value*/         \
-    __VA_ARGS__+0,                                                             \
-    taskKernel->getCudaStream()>>> PMACC_CUDAPARAMS
+#define PMACC_CUDAKERNELCONFIG(grid,block)                                     \
+    const auto&& gridExtent(grid);                                             \
+    const auto&& blockExtent(block);                                           \
+    PMACC_CUDAPARAMS
 
 /**
  * Calls a CUDA kernel and creates an EventTask which represents the kernel.
  *
- * @param kernelname name of the CUDA kernel (can also used with templates etc. myKernel<1>)
+ * @param ... name of the CUDA kernel (can also used with templates etc. myKernel<1>)
  */
-#define __cudaKernel(kernelname) {                                                      \
-    CUDA_CHECK_KERNEL_MSG(cudaDeviceSynchronize(),"Crash before kernel call");          \
-    PMacc::TaskKernel *taskKernel = PMacc::Environment<>::get().Factory().createTaskKernel(#kernelname);     \
-    kernelname PMACC_CUDAKERNELCONFIG
+#define __cudaKernel(...) {                                                    \
+    using KernelType = __VA_ARGS__;                                            \
+    const KernelType theOneAndOnlyKernel;                                      \
+    using KernelDim = ::PMacc::alpaka::Dim<KernelType::dim>;                   \
+    CUDA_CHECK_KERNEL_MSG(::alpaka::wait::wait(::PMacc::Environment<>::get().DeviceManager().getAccDevice()),"Crash before kernel call"); \
+    PMacc::TaskKernel *taskKernel = PMacc::Environment<>::get().Factory().createTaskKernel(#__VA_ARGS__);     \
+    PMACC_CUDAKERNELCONFIG
