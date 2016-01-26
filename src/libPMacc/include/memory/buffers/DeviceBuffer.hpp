@@ -29,9 +29,6 @@
 #include <memory/buffers/Buffer.hpp>
 #include <types.h>
 
-#include <cuda_runtime.h>
-#include <cuda_runtime_api.h>
-
 #include <stdexcept>
 
 namespace PMacc
@@ -51,6 +48,17 @@ namespace PMacc
     class DeviceBuffer : public Buffer<TYPE, DIM>
     {
     protected:
+
+        using  MemBufCurrentSizeDevice = MemBufCurrentSize<
+            alpaka::AccDev
+        >;
+
+        using DataView = ::alpaka::mem::view::ViewPlainPtr<
+            alpaka::AccDev,
+            TYPE,
+            alpaka::Dim<DIM>,
+            alpaka::MemSize
+         >;
 
         /** constructor
          *
@@ -86,14 +94,15 @@ namespace PMacc
         cartBuffer() const
         {
             container::DeviceBuffer<TYPE, DIM> result;
-            cudaPitchedPtr cudaData = this->getCudaPitched();
-            result.dataPointer = (TYPE*)cudaData.ptr;
+            auto & memBufView = getMemBufView();
+            result.dataPointer = ::alpaka::mem::view::getPtrNative(memBufView);
             result._size = (math::Size_t<DIM>)this->getDataSpace();
-            if(DIM == 2) result.pitch[0] = cudaData.pitch;
+            if(DIM == 2)
+                result.pitch[0] = this->getPitch();
             if(DIM == 3)
             {
-                result.pitch[0] = cudaData.pitch;
-                result.pitch[1] = cudaData.pitch * this->getPhysicalMemorySize()[1];
+                result.pitch[0] = this->getPitch();
+                result.pitch[1] = result.pitch[0] * this->getPhysicalMemorySize()[1];
             }
 #ifndef __CUDA_ARCH__
             result.refCount = new int;
@@ -118,6 +127,31 @@ namespace PMacc
          */
         virtual bool hasCurrentSizeOnDevice() const = 0;
 
+        /** get native alpaka buffer of the `DeviceBuffer`
+         *
+         * location of the alpaka buffer is DEVICE
+         * @{/
+         */
+        virtual
+        const MemBufCurrentSizeDevice &
+        getMemBufSizeHost() const = 0;
+
+        virtual
+        MemBufCurrentSizeDevice &
+        getMemBufSizeDevice() = 0;
+        /// @}
+
+        /** Returns a view to the internal alpaka buffer.
+         *
+         * @return view to alpaka buffer
+         *
+         * @{
+         */
+        virtual DataView const & getMemBufView() const = 0;
+
+        virtual DataView & getMemBufView() = 0;
+        /// @}
+
         /**
          * Returns pointer to current size on device.
          *
@@ -141,13 +175,6 @@ namespace PMacc
          * @param size count of elements per dimension
          */
         virtual void setCurrentSize(const size_t size) = 0;
-
-        /**
-         * Returns the internal pitched cuda pointer.
-         *
-         * @return internal pitched cuda pointer
-         */
-        virtual const cudaPitchedPtr getCudaPitched() const = 0;
 
         /** get line pitch of memory in byte
          *

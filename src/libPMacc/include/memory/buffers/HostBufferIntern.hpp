@@ -41,6 +41,25 @@ class HostBufferIntern : public HostBuffer<TYPE, DIM>
 {
 public:
 
+    using DataBuf = alpaka::mem::buf::Buf<
+        alpaka::HostDev,
+        TYPE,
+        alpaka::Dim<DIM>,
+        alpaka::MemSize
+    >;
+
+    using Data1DBuf = ::alpaka::mem::view::ViewPlainPtr<
+        alpaka::HostDev,
+        TYPE,
+        alpaka::Dim<DIM1>,
+        alpaka::MemSize
+     >;
+
+    using DataView = typename PMacc::HostBuffer<
+        TYPE,
+        DIM
+    >::DataView;
+
     typedef typename DeviceBuffer<TYPE, DIM>::DataBoxType DataBoxType;
 
     /** constructor
@@ -51,15 +70,60 @@ public:
     HostBuffer<TYPE, DIM>(size, size),
     pointer(NULL),ownPointer(true)
     {
-        CUDA_CHECK(cudaMallocHost(&pointer, size.productOfComponents() * sizeof (TYPE)));
+        /* always create 1d buffer to be sure that the PMacc definition for
+         * host buffer is full filled
+         *
+         * *PMacc definition:* a line in a host buffer is not padded
+         */
+        m_data1DBuf.reset(
+            new ::alpaka::mem::buf::alloc<TYPE, alpaka::MemSize>(
+                Environment<>::get().DeviceManager().getAccDevice(),
+                static_cast<alpaka::MemSize>(
+                    this->getDataSpace().productOfComponents()
+                )
+            )
+        );
+
+        auto&& dataBuffer(*m_data1DBuf.get());
+        /* create view which is used in the tasks */
+        m_dataView.reset(
+            new DataView(
+                ::alpaka::mem::view::getPtrNative(dataBuffer),
+                *::alpaka::mem::view::getPtrDev(dataBuffer),
+                PMacc::algorithms::precisionCast::precisionCast<alpaka::MemSize>(
+                    this->getDataSpace()
+                ),
+                this->getDataSpace()[0] * sizeof (TYPE)
+            )
+        );
+
         reset(false);
     }
 
     HostBufferIntern(HostBufferIntern& source, DataSpace<DIM> size, DataSpace<DIM> offset=DataSpace<DIM>()) :
     HostBuffer<TYPE, DIM>(size, source.getPhysicalMemorySize()),
-    pointer(NULL),ownPointer(false)
+    ownPointer(false)
     {
-        pointer=&(source.getDataBox()(offset));/*fix me, this is a bad way*/
+        auto&& dataBuffer(source.getMemBufView());
+
+        PMacc::math::Vector<alpaka::MemSize,DIM> pitchVector;
+        pitchVector.x() = ::alpaka::mem::view::getPitchBytes< DIM - 1 >(dataBuffer);
+
+        for( uint32_t d = 1 ; d < DIM; ++d)
+            pitchVector[ d ] = pitchVector[ d - 1 ] * source.getPhysicalMemorySize()[ d ];
+
+        /* create view which is used in the tasks */
+        m_dataView.reset(
+            new DataView(
+                &(source.getDataBox()(offset)), /// @todo fix me, this is a bad way
+                *::alpaka::mem::view::getPtrDev(dataBuffer),
+                /* @bug alpaka can not handle views correct
+                 * @todo remove this workaround
+                 */
+                size,
+                pitchVector
+            )
+        );
         reset(true);
     }
 
@@ -69,11 +133,6 @@ public:
     virtual ~HostBufferIntern()
     {
         __startOperation(ITask::TASK_HOST);
-
-        if (pointer && ownPointer)
-        {
-            CUDA_CHECK(cudaFreeHost(pointer));
-        }
     }
 
     /*! Get pointer of memory
@@ -82,13 +141,13 @@ public:
     TYPE* getBasePointer()
     {
         __startOperation(ITask::TASK_HOST);
-        return pointer;
+        return this->getPointer();
     }
 
     TYPE* getPointer()
     {
         __startOperation(ITask::TASK_HOST);
-        return pointer;
+        return *::alpaka::mem::view::getPtrNative(this->getMemBufView());
     }
 
     void copyFrom(DeviceBuffer<TYPE, DIM>& other)
@@ -103,11 +162,18 @@ public:
         this->setCurrentSize(this->getDataSpace().productOfComponents());
         if (!preserveData)
         {
-            /* if it is a pointer out of other memory we can not assume that
-             * that the physical memory is contiguous
-             */
             if(ownPointer)
-                memset(pointer, 0, this->getDataSpace().productOfComponents() * sizeof (TYPE));
+            {
+                ///@todo this call ignores the vent system
+                auto&& stream(Environment<>::get().TransactionManager().getEventStream(ITask::TASK_CUDA)->getCudaStream());
+                alpaka::mem::view::set(
+                    stream,
+                    this->getMemBufView(),
+                    0,
+                    this->getDataSpace()
+                );
+                ::alpaka::wait::wait(stream);
+            }
             else
             {
                 TYPE value;
@@ -140,13 +206,36 @@ public:
     DataBoxType getDataBox()
     {
         __startOperation(ITask::TASK_HOST);
-        return DataBoxType(PitchedBox<TYPE, DIM > (pointer, DataSpace<DIM > (),
+        return DataBoxType(PitchedBox<TYPE, DIM > (this->getPointer(), DataSpace<DIM > (),
                                                    this->getPhysicalMemorySize(), this->getPhysicalMemorySize()[0] * sizeof (TYPE)));
     }
 
+    DataView const &
+    getMemBufView() const
+    {
+        __startOperation(ITask::TASK_HOST);
+        return m_dataView;
+    }
+
+    DataView &
+    getMemBufView()
+    {
+        __startOperation(ITask::TASK_HOST);
+        return m_dataView;
+    }
+
 private:
-    TYPE* pointer;
+
     bool ownPointer;
+
+    ///! 1D buffer to create fake N dimensional data
+    std::unique_ptr<Data1DBuf> m_data1DBuf;
+
+    /** buffer which is used inside PMacc
+     *
+     * this object is always valid
+     */
+    std::unique_ptr<DataView> m_dataView;
 };
 
 }
