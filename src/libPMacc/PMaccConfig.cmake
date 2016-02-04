@@ -26,231 +26,341 @@
 #  PMacc_LIBRARIES    - libraries to link against
 #  PMacc_DEFINITIONS  - definitions of pmacc
 
-###############################################################################
-# PMacc
-###############################################################################
-cmake_minimum_required(VERSION 3.3)
-project("PMacc")
+################################################################################
+# Required cmake version.
+################################################################################
 
-set(PMacc_INCLUDE_DIRS ${PMacc_INCLUDE_DIRS} "${PMacc_DIR}/include")
+CMAKE_MINIMUM_REQUIRED(VERSION 3.3)
 
-# This path should be within PMacc
+################################################################################
+# PMacc.
+################################################################################
+
+# Return values.
+UNSET(PMacc_FOUND)
+UNSET(PMacc_VERSION)
+UNSET(PMacc_COMPILE_OPTIONS)
+UNSET(PMacc_COMPILE_DEFINITIONS)
+UNSET(PMacc_DEFINITIONS)
+UNSET(PMacc_INCLUDE_DIR)
+UNSET(PMacc_INCLUDE_DIRS)
+UNSET(PMacc_LIBRARY)
+UNSET(PMacc_LIBRARIES)
+
+# Internal usage.
+UNSET(_PMACC_FOUND)
+UNSET(_PMACC_VERSION)
+UNSET(_PMACC_COMPILE_OPTIONS_PUBLIC)
+UNSET(_PMACC_COMPILE_DEFINITIONS_PUBLIC)
+UNSET(_PMACC_INCLUDE_DIR)
+UNSET(_PMACC_INCLUDE_DIRECTORIES_PUBLIC)
+UNSET(_PMACC_LINK_LIBRARIES_PUBLIC)
+UNSET(_PMACC_FILES_HEADER)
+UNSET(_PMACC_FILES_SOURCE)
+UNSET(_PMACC_FILES_OTHER)
+
+#-------------------------------------------------------------------------------
+# Directory of this file.
+#-------------------------------------------------------------------------------
+SET(_PMACC_ROOT_DIR ${CMAKE_CURRENT_LIST_DIR})
+
+# Normalize the path (e.g. remove ../)
+GET_FILENAME_COMPONENT(_PMACC_ROOT_DIR "${_PMACC_ROOT_DIR}" ABSOLUTE)
+
+#-------------------------------------------------------------------------------
+# Set found to true initially and SET it on false IF a required dependency is missing.
+#-------------------------------------------------------------------------------
+SET(_PMACC_FOUND TRUE)
+
+#-------------------------------------------------------------------------------
+# Common.
+#-------------------------------------------------------------------------------
 # own modules for find_packages
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH}
-    ${PMacc_DIR}/../../thirdParty/cmake-modules/)
+LIST(APPEND CMAKE_MODULE_PATH "${_PMACC_ROOT_DIR}/../../thirdParty/cmake-modules")
 
-# Options
-option(PMACC_BLOCKING_KERNEL "activate checks for every kernel call and synch after every kernel call" OFF)
-if(PMACC_BLOCKING_KERNEL)
-  set(PMacc_DEFINITIONS ${PMacc_DEFINITIONS} "-DPMACC_SYNC_KERNEL=1")
-endif(PMACC_BLOCKING_KERNEL)
+#-------------------------------------------------------------------------------
+# Options.
+#-------------------------------------------------------------------------------
+SET(PMACC_VERBOSE "0" CACHE STRING "Set verbosity level for libPMacc")
+LIST(APPEND _PMACC_COMPILE_DEFINITIONS_PUBLIC "PMACC_VERBOSE_LVL=${PMACC_VERBOSE}")
 
-set(PMACC_VERBOSE "0" CACHE STRING "set verbose level for libPMacc")
-set(PMacc_DEFINITIONS ${PMacc_DEFINITIONS} "-DPMACC_VERBOSE_LVL=${PMACC_VERBOSE}")
+OPTION(PMACC_BLOCKING_KERNEL "Activate checks for every kernel call and synchronize after every kernel call" OFF)
+IF(PMACC_BLOCKING_KERNEL)
+    LIST(APPEND _PMACC_COMPILE_DEFINITIONS_PUBLIC "PMACC_SYNC_KERNEL=1")
+ENDIF(PMACC_BLOCKING_KERNEL)
 
-###############################################################################
-# Compiler Flags
-###############################################################################
+#-------------------------------------------------------------------------------
+# Find alpaka
+# NOTE: Do this first, because it declares `list_add_prefix` and `append_recursive_files_add_to_src_group` used later on.
+#-------------------------------------------------------------------------------
+SET("ALPAKA_ROOT" "$ENV{ALPAKA_ROOT}" CACHE STRING  "The location of the alpaka library")
+LIST(APPEND CMAKE_MODULE_PATH "${ALPAKA_ROOT}")
+FIND_PACKAGE(alpaka)
+IF(NOT alpaka_FOUND)
+    MESSAGE(WARNING "Required PMacc dependency alpaka could not be found!")
+    SET(_PMACC_FOUND FALSE)
 
-# GNU
-if(CMAKE_COMPILER_IS_GNUCXX)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unknown-pragmas")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wextra")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-parameter")
-# ICC
-elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DBOOST_NO_VARIADIC_TEMPLATES")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DBOOST_NO_CXX11_VARIADIC_TEMPLATES")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DBOOST_NO_FENV_H")
-# PGI
-elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "PGI")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Minform=inform")
+ELSE()
+    LIST(APPEND _PMACC_COMPILE_OPTIONS_PUBLIC ${alpaka_COMPILE_OPTIONS})
+    LIST(APPEND _PMACC_COMPILE_DEFINITIONS_PUBLIC ${alpaka_COMPILE_DEFINITIONS})
+    LIST(APPEND _PMACC_INCLUDE_DIRECTORIES_PUBLIC ${alpaka_INCLUDE_DIRS})
+    LIST(APPEND _PMACC_LINK_LIBRARIES_PUBLIC ${alpaka_LIBRARIES})
+ENDIF()
+
+#-------------------------------------------------------------------------------
+# Find MPI
+#-------------------------------------------------------------------------------
+FIND_PACKAGE(MPI)
+IF(NOT MPI_CXX_FOUND)
+    MESSAGE(WARNING "Required PMacc dependency MPI could not be found!")
+    SET(_PMACC_FOUND FALSE)
+
+ELSE()
+    LIST(APPEND _PMACC_COMPILE_OPTIONS_PUBLIC  ${MPI_CXX_COMPILE_FLAGS})
+    LIST(APPEND _PMACC_INCLUDE_DIRECTORIES_PUBLIC ${MPI_CXX_INCLUDE_PATH})
+
+    SET(_PMACC_MPI_LIBRARIES ${MPI_CXX_LIBRARIES})
+    list_add_prefix("general;" _PMACC_MPI_LIBRARIES)
+    LIST(APPEND _PMACC_LINK_LIBRARIES_PUBLIC ${_PMACC_MPI_LIBRARIES})
+    UNSET(_PMACC_MPI_LIBRARIES)
+ENDIF()
+
+#-------------------------------------------------------------------------------
+# Find Boost
+#-------------------------------------------------------------------------------
+FIND_PACKAGE(Boost 1.49.0)
+IF(NOT Boost_FOUND)
+    MESSAGE(WARNING "Required PMacc dependency Boost could not be found!")
+    SET(_PMACC_FOUND FALSE)
+
+ELSE()
+    LIST(APPEND _PMACC_INCLUDE_DIRECTORIES_PUBLIC ${Boost_INCLUDE_DIRS})
+ENDIF()
+
+# PMacc (ab)uses boost::result_of for non-functors (e.g. []-operators). This
+# define forces boost to use the result<> member template of the target type
+if(Boost_VERSION LESS 105500)
+    add_definitions(-DBOOST_RESULT_OF_USE_TR1)
+else()
+    # Boost 1.55 adds support for another define that makes result_of look for
+    # the result<> template and falls back to decltype if none is found. This is
+    # great for the transition from the "wrong" usage to the "correct" one as
+    # both can be used. But:
+    # 1) Cannot be used in 7.0 due to nvcc bug:
+    #    http://stackoverflow.com/questions/31940457/
+    # 2) Requires C++11 enabled as there is no further check in boost besides
+    #    the version check of nvcc
+    if( (NOT CUDA_VERSION VERSION_EQUAL 7.0) AND (CMAKE_CXX_STANDARD EQUAL 11) )
+        add_definitions(-DBOOST_RESULT_OF_USE_TR1_WITH_DECLTYPE_FALLBACK)
+    else()
+        # Fallback
+        add_definitions(-DBOOST_RESULT_OF_USE_TR1)
+    endif()
 endif()
 
-################################################################################
-# CUDA
-################################################################################
-find_package(CUDA 5.0 REQUIRED)
+#-------------------------------------------------------------------------------
+# Find mallocMC
+#-------------------------------------------------------------------------------
+FIND_PACKAGE(mallocMC 2.1.0 QUIET)
+IF(NOT mallocMC_FOUND)
+    MESSAGE(STATUS "Trying to use mallocMC from thirdParty/ directory")
+    SET(MALLOCMC_ROOT "${_PMACC_ROOT_DIR}/../../thirdParty/mallocMC")
+    FIND_PACKAGE(mallocMC 2.1.0 QUIET)
+    IF(NOT mallocMC_FOUND)
+        MESSAGE(WARNING "Required PMacc dependency mallocMC could not be found!")
+        SET(_PMACC_FOUND FALSE)
+    ENDIF()
+ENDIF()
 
-if(CUDA_VERSION VERSION_LESS 5.5)
-    message(STATUS "CUDA Toolkit < 5.5 detected. We strongly recommend to still "
-                   "use CUDA 5.5+ drivers (319.82 or higher)!")
-endif(CUDA_VERSION VERSION_LESS 5.5)
+IF(mallocMC_FOUND)
+    LIST(APPEND _PMACC_INCLUDE_DIRECTORIES_PUBLIC ${mallocMC_INCLUDE_DIRS})
+    # TODO: Compile options or compile definitions?
+    LIST(APPEND _PMACC_COMPILE_OPTIONS_PUBLIC ${mallocMC_DEFINITIONS})
+    LIST(APPEND _PMACC_LINK_LIBRARIES_PUBLIC ${mallocMC_LIBRARIES})
+ENDIF()
 
-set(CUDA_ARCH sm_20 CACHE STRING "Set GPU architecture")
-string(COMPARE EQUAL ${CUDA_ARCH} "sm_10" IS_CUDA_ARCH_UNSUPPORTED)
-string(COMPARE EQUAL ${CUDA_ARCH} "sm_11" IS_CUDA_ARCH_UNSUPPORTED)
-string(COMPARE EQUAL ${CUDA_ARCH} "sm_12" IS_CUDA_ARCH_UNSUPPORTED)
-string(COMPARE EQUAL ${CUDA_ARCH} "sm_13" IS_CUDA_ARCH_UNSUPPORTED)
+#-------------------------------------------------------------------------------
+# Compiler settings.
+#-------------------------------------------------------------------------------
+IF(MSVC)
+    # Empty append to define it IF it does not already exist.
+    LIST(APPEND _PMACC_COMPILE_OPTIONS_PUBLIC)
+ELSE()
+    # GNU
+    IF(CMAKE_COMPILER_IS_GNUCXX)
+        LIST(APPEND _PMACC_COMPILE_OPTIONS_PUBLIC "-Wall")
+        LIST(APPEND _PMACC_COMPILE_OPTIONS_PUBLIC "-Wextra")
+        LIST(APPEND _PMACC_COMPILE_OPTIONS_PUBLIC "-Wno-unknown-pragmas")
+        LIST(APPEND _PMACC_COMPILE_OPTIONS_PUBLIC "-Wno-unused-parameter")
+        LIST(APPEND _PMACC_COMPILE_OPTIONS_PUBLIC "-Wno-unused-local-typedefs")
+        LIST(APPEND _PMACC_COMPILE_OPTIONS_PUBLIC "-Wno-attributes")
+        LIST(APPEND _PMACC_COMPILE_OPTIONS_PUBLIC "-Wno-reorder")
+        LIST(APPEND _PMACC_COMPILE_OPTIONS_PUBLIC "-Wno-sign-compare")
+    # ICC
+    ELSEIF(${CMAKE_CXX_COMPILER_ID} STREQUAL "Intel")
+        LIST(APPEND _PMACC_COMPILE_OPTIONS_PUBLIC "-Wall")
+        LIST(APPEND _PMACC_COMPILE_DEFINITIONS_PUBLIC "BOOST_NO_FENV_H")
+    # PGI
+    ELSEIF(${CMAKE_CXX_COMPILER_ID} STREQUAL "PGI")
+        LIST(APPEND _PMACC_COMPILE_OPTIONS_PUBLIC "-Minform=inform")
+    ENDIF()
+ENDIF()
 
-if(IS_CUDA_ARCH_UNSUPPORTED)
-    message(FATAL_ERROR "Unsupported CUDA architecture ${CUDA_ARCH} specified. "
-                       "SM 2.0 or higher is required.")
-endif(IS_CUDA_ARCH_UNSUPPORTED)
+#-------------------------------------------------------------------------------
+# PMacc.
+#-------------------------------------------------------------------------------
+SET(_PMACC_INCLUDE_DIR "${_PMACC_ROOT_DIR}/include")
+LIST(APPEND _PMACC_INCLUDE_DIRECTORIES_PUBLIC ${_PMACC_INCLUDE_DIR})
+SET(_PMACC_SUFFIXED_INCLUDE_DIR "${_PMACC_INCLUDE_DIR}")
+#SET(_PMACC_SUFFIXED_INCLUDE_DIR "${_PMACC_INCLUDE_DIR}/PMacc")
 
-set(CUDA_FTZ "--ftz=false" CACHE STRING "Set flush to zero for GPU")
+SET(_PMACC_LINK_LIBRARY)
+LIST(APPEND _PMACC_LINK_LIBRARIES_PUBLIC ${_PMACC_LINK_LIBRARY})
 
-set(CUDA_MATH --use_fast_math CACHE STRING "Enable fast-math" )
-option(CUDA_SHOW_REGISTER "Show kernel registers and create PTX" OFF)
-option(CUDA_KEEP_FILES "Keep all intermediate files that are generated during internal compilation steps (folder: nvcc_tmp)" OFF)
-option(CUDA_SHOW_CODELINES "Show kernel lines in cuda-gdb and cuda-memcheck" OFF)
+SET(_PMACC_FILES_OTHER "${_PMACC_ROOT_DIR}/FindPMacc.cmake" "${_PMACC_ROOT_DIR}/PMaccConfig.cmake")
 
-if(CUDA_SHOW_CODELINES)
-    set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS}" --source-in-ptx -Xcompiler -rdynamic -lineinfo)
-    set(CUDA_KEEP_FILES ON CACHE BOOL "activate keep files" FORCE)
-endif(CUDA_SHOW_CODELINES)
+# Add all the include files in all recursive subdirectories and group them accordingly.
+append_recursive_files_add_to_src_group("${_PMACC_SUFFIXED_INCLUDE_DIR}" "${_PMACC_SUFFIXED_INCLUDE_DIR}" "hpp" _PMACC_FILES_HEADER)
+append_recursive_files_add_to_src_group("${_PMACC_SUFFIXED_INCLUDE_DIR}" "${_PMACC_SUFFIXED_INCLUDE_DIR}" "h" _PMACC_FILES_HEADER)
+append_recursive_files_add_to_src_group("${_PMACC_SUFFIXED_INCLUDE_DIR}" "${_PMACC_SUFFIXED_INCLUDE_DIR}" "tpp" _PMACC_FILES_HEADER)
+append_recursive_files_add_to_src_group("${_PMACC_SUFFIXED_INCLUDE_DIR}" "${_PMACC_SUFFIXED_INCLUDE_DIR}" "def" _PMACC_FILES_HEADER)
+append_recursive_files_add_to_src_group("${_PMACC_SUFFIXED_INCLUDE_DIR}" "${_PMACC_SUFFIXED_INCLUDE_DIR}" "kernel" _PMACC_FILES_HEADER)
 
-set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} ${nvcc_flags} -arch=${CUDA_ARCH} ${CUDA_MATH} ${CUDA_FTZ})
-if(CUDA_SHOW_REGISTER)
-    set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS}" -Xptxas=-v)
-endif(CUDA_SHOW_REGISTER)
+#append_recursive_files_add_to_src_group("${_PMACC_SUFFIXED_INCLUDE_DIR}" "${_PMACC_SUFFIXED_INCLUDE_DIR}" "cpp" _PMACC_FILES_SOURCE)
 
-if(CUDA_KEEP_FILES)
-    file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/nvcc_tmp")
-    set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS}" --keep --keep-dir "${PROJECT_BINARY_DIR}/nvcc_tmp")
-endif(CUDA_KEEP_FILES)
+#-------------------------------------------------------------------------------
+# Target.
+#-------------------------------------------------------------------------------
+IF(NOT TARGET PMacc)
 
-################################################################################
-# VAMPIR
-################################################################################
+    ADD_LIBRARY(
+        "PMacc"
+        ${_PMACC_FILES_HEADER} ${_PMACC_FILES_SOURCE} ${_PMACC_FILES_OTHER})
 
-################################################################################
-# VampirTrace
-################################################################################
+    # Even if there are no sources CMAKE has to know the language.
+    SET_TARGET_PROPERTIES("PMacc" PROPERTIES LINKER_LANGUAGE CXX)
 
-option(VAMPIR_ENABLE "Create PMacc with VampirTrace support" OFF)
+    # Compile options.
+    MESSAGE(STATUS "_PMACC_COMPILE_OPTIONS_PUBLIC: ${_PMACC_COMPILE_OPTIONS_PUBLIC}")
+    LIST(
+        LENGTH
+        _PMACC_COMPILE_OPTIONS_PUBLIC
+        _PMACC_COMPILE_OPTIONS_PUBLIC_LENGTH)
+    IF("${_PMACC_COMPILE_OPTIONS_PUBLIC_LENGTH}")
+        TARGET_COMPILE_OPTIONS(
+            "PMacc"
+            PUBLIC ${_PMACC_COMPILE_OPTIONS_PUBLIC})
+    ENDIF()
 
-# set filters: please do NOT use line breaks WITHIN the string!
-set(VT_INST_FILE_FILTER
-    "stl,usr/include,libgpugrid,vector_types.h,Vector.hpp,DeviceBuffer.hpp,DeviceBufferIntern.hpp,Buffer.hpp,StrideMapping.hpp,StrideMappingMethods.hpp,MappingDescription.hpp,AreaMapping.hpp,AreaMappingMethods.hpp,ExchangeMapping.hpp,ExchangeMappingMethods.hpp,DataSpace.hpp,Manager.hpp,Manager.tpp,Transaction.hpp,Transaction.tpp,TransactionManager.hpp,TransactionManager.tpp,Vector.tpp,Mask.hpp,ITask.hpp,EventTask.hpp,EventTask.tpp,StandardAccessor.hpp,StandardNavigator.hpp,HostBuffer.hpp,HostBufferIntern.hpp"
-    CACHE STRING "VampirTrace: Files to exclude from instrumentation")
-set(VT_INST_FUNC_FILTER
-    "vector,Vector,dim3,GPUGrid,execute,allocator,Task,Manager,Transaction,Mask,operator,DataSpace,PitchedBox,Event,new,getGridDim,GetCurrentDataSpaces,MappingDescription,getOffset,getParticlesBuffer,getDataSpace,getInstance"
-    CACHE STRING "VampirTrace: Functions to exclude from instrumentation")
+    # Compile definitions.
+    MESSAGE(STATUS "_PMACC_COMPILE_DEFINITIONS_PUBLIC: ${_PMACC_COMPILE_DEFINITIONS_PUBLIC}")
+    LIST(
+        LENGTH
+        _PMACC_COMPILE_DEFINITIONS_PUBLIC
+        _PMACC_COMPILE_DEFINITIONS_PUBLIC_LENGTH)
+    IF("${_PMACC_COMPILE_DEFINITIONS_PUBLIC_LENGTH}")
+        TARGET_COMPILE_DEFINITIONS(
+            "PMacc"
+            PUBLIC ${_PMACC_COMPILE_DEFINITIONS_PUBLIC})
+    ENDIF()
 
-if(VAMPIR_ENABLE)
-    message(STATUS "Building with VampirTrace support")
-    set(VAMPIR_ROOT "$ENV{VT_ROOT}")
-    if(NOT VAMPIR_ROOT)
-        message(FATAL_ERROR "Environment variable VT_ROOT not set!")
-    endif(NOT VAMPIR_ROOT)
+    # Include directories.
+    MESSAGE(STATUS "_PMACC_INCLUDE_DIRECTORIES_PUBLIC: ${_PMACC_INCLUDE_DIRECTORIES_PUBLIC}")
+    LIST(
+        LENGTH
+        _PMACC_INCLUDE_DIRECTORIES_PUBLIC
+        _PMACC_INCLUDE_DIRECTORIES_PUBLIC_LENGTH)
+    IF("${_PMACC_INCLUDE_DIRECTORIES_PUBLIC_LENGTH}")
+        TARGET_INCLUDE_DIRECTORIES(
+            "PMacc"
+            PUBLIC ${_PMACC_INCLUDE_DIRECTORIES_PUBLIC})
+    ENDIF()
 
-    # compile flags
-    execute_process(COMMAND $ENV{VT_ROOT}/bin/vtc++ -vt:hyb -vt:showme-compile
-                    OUTPUT_VARIABLE VT_COMPILEFLAGS
-                    RESULT_VARIABLE VT_CONFIG_RETURN
-                    OUTPUT_STRIP_TRAILING_WHITESPACE)
-    if(NOT VT_CONFIG_RETURN EQUAL 0)
-        message(FATAL_ERROR "Can NOT execute 'vtc++' at $ENV{VT_ROOT}/bin/vtc++ - check file permissions")
-    endif()
-    # link flags
-    execute_process(COMMAND $ENV{VT_ROOT}/bin/vtc++ -vt:hyb -vt:showme-link
-                    OUTPUT_VARIABLE VT_LINKFLAGS
-                    OUTPUT_STRIP_TRAILING_WHITESPACE)
+    # Link libraries.
+    MESSAGE(STATUS "_PMACC_LINK_LIBRARIES_PUBLIC: ${_PMACC_LINK_LIBRARIES_PUBLIC}")
+    #LIST(
+    #    LENGTH
+    #    _PMACC_LINK_LIBRARIES_PUBLIC
+    #    _PMACC_LINK_LIBRARIES_PUBLIC_LENGTH)
+    #IF("${_PMACC_LINK_LIBRARIES_PUBLIC_LENGTH}")
+        TARGET_LINK_LIBRARIES(
+            "PMacc"
+            PUBLIC alpaka ${_PMACC_LINK_LIBRARIES_PUBLIC})
+    #ENDIF()
+ENDIF()
 
-    # bugfix showme
-    string(REPLACE "--as-needed" "--no-as-needed" VT_LINKFLAGS "${VT_LINKFLAGS}")
+#-------------------------------------------------------------------------------
+# Find PMacc version.
+#-------------------------------------------------------------------------------
+# FIXME: Add a version.hpp
+SET(_PMACC_VERSION "0.1.0")
 
-    # modify our flags
-    set(CMAKE_CXX_LINK_FLAGS "${CMAKE_CXX_LINK_FLAGS} ${VT_LINKFLAGS}")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${VT_COMPILEFLAGS}")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -finstrument-functions-exclude-file-list=${VT_INST_FILE_FILTER}")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -finstrument-functions-exclude-function-list=${VT_INST_FUNC_FILTER}")
+#-------------------------------------------------------------------------------
+# Set return values.
+#-------------------------------------------------------------------------------
+SET(PMacc_VERSION ${_PMACC_VERSION})
+SET(PMacc_COMPILE_OPTIONS ${_PMACC_COMPILE_OPTIONS_PUBLIC})
+SET(PMacc_COMPILE_DEFINITIONS ${_PMACC_COMPILE_DEFINITIONS_PUBLIC})
+# Add '-D' to the definitions
+SET(PMacc_DEFINITIONS ${_PMACC_COMPILE_DEFINITIONS_PUBLIC})
+list_add_prefix("-D" PMacc_DEFINITIONS)
+# Add the compile options to the definitions.
+LIST(APPEND PMacc_DEFINITIONS ${_PMACC_COMPILE_OPTIONS_PUBLIC})
+SET(PMacc_INCLUDE_DIR ${_PMACC_INCLUDE_DIR})
+SET(PMacc_INCLUDE_DIRS ${_PMACC_INCLUDE_DIRECTORIES_PUBLIC})
+SET(PMacc_LIBRARY ${_PMACC_LINK_LIBRARY})
+SET(PMacc_LIBRARIES ${_PMACC_LINK_LIBRARIES_PUBLIC})
 
-    # nvcc flags (rly necessary?)
-    set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}
-        -Xcompiler=-finstrument-functions,-finstrument-functions-exclude-file-list=\\\"${VT_INST_FILE_FILTER}\\\"
-        -Xcompiler=-finstrument-functions-exclude-function-list=\\\"${VT_INST_FUNC_FILTER}\\\"
-        -Xcompiler=-DVTRACE -Xcompiler=-I\\\"${VT_ROOT}/include/vampirtrace\\\"
-        -v)
+# Unset already SET variables IF not found.
+IF(NOT _PMACC_FOUND)
+    UNSET(PMacc_FOUND)
+    UNSET(PMacc_VERSION)
+    UNSET(PMacc_COMPILE_OPTIONS)
+    UNSET(PMacc_COMPILE_DEFINITIONS)
+    UNSET(PMacc_DEFINITIONS)
+    UNSET(PMacc_INCLUDE_DIR)
+    UNSET(PMacc_INCLUDE_DIRS)
+    UNSET(PMacc_LIBRARY)
+    UNSET(PMacc_LIBRARIES)
 
-    # for manual instrumentation and hints that vampir is enabled in our code
-    add_definitions(-DVTRACE)
-
-    # titan work around: currently (5.14.4) the -D defines are not provided by -vt:showme-compile
-    add_definitions(-DMPICH_IGNORE_CXX_SEEK)
-endif(VAMPIR_ENABLE)
-
-
-################################################################################
-# Score-P
-################################################################################
-
-option(SCOREP_ENABLE "Create PMacc with Score-P support" OFF)
-
-if(SCOREP_ENABLE)
-    message(STATUS "Building with Score-P support")
-    set(SCOREP_ROOT "$ENV{SCOREP_ROOT}")
-    if(NOT SCOREP_ROOT)
-        message(FATAL_ERROR "Environment variable SCOREP_ROOT not set!")
-    endif(NOT SCOREP_ROOT)
-
-    # compile flags
-    execute_process(COMMAND $ENV{SCOREP_ROOT}/bin/scorep-config --nocompiler --cflags
-                    OUTPUT_VARIABLE SCOREP_COMPILEFLAGS
-                    RESULT_VARIABLE SCOREP_CONFIG_RETURN
-                    OUTPUT_STRIP_TRAILING_WHITESPACE)
-    if(NOT SCOREP_CONFIG_RETURN EQUAL 0)
-        message(FATAL_ERROR "Can NOT execute 'scorep-config' at $ENV{SCOREP_ROOT}/bin/scorep-config - check file permissions")
-    endif()
-
-    # link flags
-    execute_process(COMMAND $ENV{SCOREP_ROOT}/bin/scorep-config --cuda --mpp=mpi --ldflags
-                    OUTPUT_VARIABLE SCOREP_LINKFLAGS
-                    OUTPUT_STRIP_TRAILING_WHITESPACE)
-    # libraries
-    execute_process(COMMAND $ENV{SCOREP_ROOT}/bin/scorep-config --cuda --mpp=mpi --libs
-                    OUTPUT_VARIABLE SCOREP_LIBFLAGS
-                    OUTPUT_STRIP_TRAILING_WHITESPACE)
-    string(STRIP "${SCOREP_LIBFLAGS}" SCOREP_LIBFLAGS)
-
-    # subsystem iniialization file
-    execute_process(COMMAND $ENV{SCOREP_ROOT}/bin/scorep-config --cuda --mpp=mpi --adapter-init
-                    OUTPUT_VARIABLE SCOREP_INIT_FILE
-                    OUTPUT_STRIP_TRAILING_WHITESPACE)
-    file(WRITE ${CMAKE_BINARY_DIR}/scorep_init.c "${SCOREP_INIT_FILE}")
-
-    if(SCOREP_ENABLE)
-        set(SCOREP_SRCFILES "${CMAKE_BINARY_DIR}/scorep_init.c")
-    endif(SCOREP_ENABLE)
-
-    # modify our flags
-    set(CMAKE_CXX_LINK_FLAGS "${CMAKE_CXX_LINK_FLAGS} ${SCOREP_LINKFLAGS}")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SCOREP_COMPILEFLAGS}")
-endif(SCOREP_ENABLE)
-
-################################################################################
-# MPI LIB
-################################################################################
-find_package(MPI MODULE REQUIRED)
-set(PMacc_INCLUDE_DIRS ${PMacc_INCLUDE_DIRS} ${MPI_C_INCLUDE_PATH})
-set(PMacc_LIBRARIES ${PMacc_LIBRARIES} ${MPI_C_LIBRARIES})
-set(PMacc_LIBRARIES ${PMacc_LIBRARIES} ${MPI_CXX_LIBRARIES})
-
-################################################################################
-# PNGwriter
-################################################################################
-find_package(PNGwriter MODULE REQUIRED)
-
-if(PNGwriter_FOUND)
-  include_directories( )
-  set(PMacc_INCLUDE_DIRS ${PMacc_INCLUDE_DIRS} ${PNGwriter_INCLUDE_DIRS})
-  list(APPEND PNGwriter_DEFINITIONS "-DGOL_ENABLE_PNG=1")
-  set(PMacc_DEFINITIONS ${PMacc_DEFINITIONS} ${PNGwriter_DEFINITIONS})
-  set(PMacc_LIBRARIES ${PMacc_LIBRARIES} ${PNGwriter_LIBRARIES})
-endif(PNGwriter_FOUND)
+    UNSET(_PMACC_FOUND)
+    UNSET(_PMACC_COMPILE_OPTIONS_PUBLIC)
+    UNSET(_PMACC_COMPILE_DEFINITIONS_PUBLIC)
+    UNSET(_PMACC_INCLUDE_DIR)
+    UNSET(_PMACC_INCLUDE_DIRECTORIES_PUBLIC)
+    UNSET(_PMACC_LINK_LIBRARY)
+    UNSET(_PMACC_LINK_LIBRARIES_PUBLIC)
+    UNSET(_PMACC_FILES_HEADER)
+    UNSET(_PMACC_FILES_SOURCE)
+    UNSET(_PMACC_FILES_OTHER)
+    UNSET(_PMACC_VERSION)
+ELSE()
+    # Make internal variables advanced options in the GUI.
+    MARK_AS_ADVANCED(
+        PMacc_INCLUDE_DIR
+        PMacc_LIBRARY
+        _PMACC_FOUND
+        _PMACC_COMPILE_OPTIONS_PUBLIC
+        _PMACC_COMPILE_DEFINITIONS_PUBLIC
+        _PMACC_INCLUDE_DIR
+        _PMACC_INCLUDE_DIRECTORIES_PUBLIC
+        _PMACC_LINK_LIBRARY
+        _PMACC_LINK_LIBRARIES_PUBLIC
+        _PMACC_FILES_HEADER
+        _PMACC_FILES_SOURCE
+        _PMACC_FILES_OTHER
+        _PMACC_VERSION)
+ENDIF()
 
 ###############################################################################
-# Boost LIB
+# FindPackage options
 ###############################################################################
-find_package(Boost 1.56.0 MODULE REQUIRED COMPONENTS program_options regex system)
-set(PMacc_INCLUDE_DIRS ${PMacc_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS})
-set(PMacc_LIBRARIES ${PMacc_LIBRARIES} ${Boost_LIBRARIES})
 
-################################################################################
-# PThreads
-################################################################################
-find_package(Threads MODULE REQUIRED)
-set(PMacc_LIBRARIES ${PMacc_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
+# Handles the REQUIRED, QUIET and version-related arguments for FIND_PACKAGE.
+# NOTE: We do not check for PMacc_LIBRARIES and PMacc_DEFINITIONS because they can be empty.
+INCLUDE(FindPackageHandleStandardArgs)
+FIND_PACKAGE_HANDLE_STANDARD_ARGS(
+    "PMacc"
+    FOUND_VAR PMacc_FOUND
+    REQUIRED_VARS PMacc_INCLUDE_DIR
+    VERSION_VAR PMacc_VERSION)
