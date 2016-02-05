@@ -24,9 +24,6 @@
 
 #include <alpaka/alpaka.hpp>
 
-#if !(defined(ALPAKA_ACC_GPU_CUDA_ENABLED) && defined(__CUDACC__))
-    #define PMACC_ACC_CPU
-#endif
 
 namespace PMacc
 {
@@ -39,26 +36,7 @@ namespace alpaka
 
     using HostDev = ::alpaka::dev::DevCpu;
 
-#ifdef PMACC_ACC_CPU
-    //! device type of the accelerator
-    using AccDev = ::alpaka::dev::DevCpu;
-
-    //! stream type of the accelerator device
-    using AccStream = ::alpaka::stream::StreamCpuAsync;
-
-    /** get type of an N-dimensional accelerator
-     *
-     * @tparam T_Dim number of dimensions
-     * @treturn alpaka accelerator type
-     */
-    template<
-        typename T_Dim
-    >
-    using Acc = ::alpaka::acc::AccCpuOmp2Threads<
-        T_Dim,
-        IdxSize
-    >;
-#else
+#if (defined(ALPAKA_ACC_GPU_CUDA_ENABLED) && defined(__CUDACC__))
     //! device type of the accelerator
     using AccDev = ::alpaka::dev::DevCudaRt;
 
@@ -77,8 +55,51 @@ namespace alpaka
         T_Dim,
         IdxSize
     >;
+    
+#elif (defined(ALPAKA_ACC_CPU_B_SEQ_T_OMP2_ENABLED))
+
+    //! device type of the accelerator
+    using AccDev = ::alpaka::dev::DevCpu;
+
+    //! stream type of the accelerator device
+    using AccStream = ::alpaka::stream::StreamCpuAsync;
+
+    /** get type of an N-dimensional accelerator
+     *
+     * @tparam T_Dim number of dimensions
+     * @treturn alpaka accelerator type
+     */
+    template<
+        typename T_Dim
+    >
+    using Acc = ::alpaka::acc::AccCpuOmp2Threads<
+        T_Dim,
+        IdxSize
+    >;    
+#elif (defined(ALPAKA_ACC_CPU_B_SEQ_T_THREADS_ENABLED))
+    //! device type of the accelerator
+    using AccDev = ::alpaka::dev::DevCpu;
+
+    //! stream type of the accelerator device
+    using AccStream = ::alpaka::stream::StreamCpuAsync;
+
+    /** get type of an N-dimensional accelerator
+     *
+     * @tparam T_Dim number of dimensions
+     * @treturn alpaka accelerator type
+     */
+    template<
+        typename T_Dim
+    >
+    using Acc = ::alpaka::acc::AccCpuThreads<
+        T_Dim,
+        IdxSize
+    >;
+#else
+    #error No accelerator was selected
 #endif
 
+    
     /** create alpaka dimension type out of an scalar
      *
      * @tparam T_dim number of dimensions
