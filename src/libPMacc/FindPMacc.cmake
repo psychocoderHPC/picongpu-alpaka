@@ -75,7 +75,7 @@ FIND_PATH(
     DOC "PMacc ROOT location")
 
 IF(_PMACC_ROOT_DIR)
-    INCLUDE("${_PMACC_ROOT_DIR}/PMaccConfig_alpaka.cmake")
+    INCLUDE("${_PMACC_ROOT_DIR}/PMaccConfig.cmake")
 ELSE()
     MESSAGE(FATAL_ERROR "PMacc could not be found!")
 ENDIF()
