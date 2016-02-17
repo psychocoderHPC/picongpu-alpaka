@@ -36,7 +36,7 @@ namespace gol
 
         struct Evolution
         {
-            static constexpr uint32_t dim = DIM2;
+            static constexpr uint32_t kernelDim = DIM2;
 
             template<
                 typename T_Acc,
@@ -94,7 +94,7 @@ namespace gol
 
         struct RandomInit
         {
-            static constexpr uint32_t dim = DIM2;
+            static constexpr uint32_t kernelDim = DIM2;
 
             template<
                 typename T_Acc,

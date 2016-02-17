@@ -108,7 +108,7 @@
 #define __cudaKernel(...) {                                                    \
     using KernelType = __VA_ARGS__;                                            \
     const KernelType theOneAndOnlyKernel;                                      \
-    using KernelDim = ::PMacc::alpaka::Dim<KernelType::dim>;                   \
+    using KernelDim = ::PMacc::alpaka::Dim<KernelType::kernelDim>;             \
     CUDA_CHECK_KERNEL_MSG(::alpaka::wait::wait(::PMacc::Environment<>::get().DeviceManager().getAccDevice()),"Crash before kernel call"); \
     PMacc::TaskKernel *taskKernel = ::PMacc::Environment<>::get().Factory().createTaskKernel(#__VA_ARGS__);     \
     PMACC_CUDAKERNELCONFIG

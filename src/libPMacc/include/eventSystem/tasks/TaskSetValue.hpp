@@ -86,7 +86,7 @@ template<
 >
 struct KernelSetValue
 {
-    static constexpr uint32_t dim = T_dim;
+    static constexpr uint32_t kernelDim = T_dim;
 
     template<
         typename T_Acc,
