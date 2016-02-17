@@ -256,7 +256,7 @@ private:
         gParticle->getDeviceBuffer().setValue(positionParticleTmp);
         dim3 block(SuperCellSize::toRT().toDim3());
 
-        __picKernelArea(kernelPositionsParticles, *cellDescription, AREA)
+        __picKernelArea(*cellDescription, AREA, kernelPositionsParticles)
             (block)
             (particles->getDeviceParticlesBox(),
              gParticle->getDeviceBuffer().getBasePointer());

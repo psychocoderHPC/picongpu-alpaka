@@ -301,7 +301,7 @@ struct CallIonization
              * "blocks" will be calculated from "this->cellDescription" and "CORE + BORDER"
              * "threads" is calculated from the previously defined vector "block"
              */
-            __picKernelArea( particles::ionization::kernelIonizeParticles, *cellDesc, CORE + BORDER )
+            __picKernelArea( *cellDesc, CORE + BORDER, particles::ionization::kernelIonizeParticles )
                 (block)
                 ( srcSpeciesPtr->getDeviceParticlesBox( ),
                   electronsPtr->getDeviceParticlesBox( ),

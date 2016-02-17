@@ -298,9 +298,9 @@ void FieldJ::computeCurrent( ParticlesClass &parClass, uint32_t )
 template<uint32_t AREA, class T_CurrentInterpolation>
 void FieldJ::addCurrentToEMF( T_CurrentInterpolation& myCurrentInterpolation )
 {
-    __picKernelArea( ( kernelAddCurrentToEMF ),
-                     cellDescription,
-                     AREA )
+    __picKernelArea( cellDescription,
+                     AREA,
+                     kernelAddCurrentToEMF )
         ( MappingDesc::SuperCellSize::toRT( ).toDim3( ) )
         ( this->fieldE->getDeviceDataBox( ),
           this->fieldB->getDeviceDataBox( ),

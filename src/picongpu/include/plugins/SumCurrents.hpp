@@ -184,7 +184,7 @@ private:
         sumcurrents->getDeviceBuffer().setValue(float3_X::create(0.0));
         dim3 block(MappingDesc::SuperCellSize::toRT().toDim3());
 
-        __picKernelArea(kernelSumCurrents, *cellDescription, CORE + BORDER)
+        __picKernelArea(*cellDescription, CORE + BORDER, kernelSumCurrents)
             (block)
             (fieldJ->getDeviceDataBox(),
              sumcurrents->getDeviceBuffer().getBasePointer());

@@ -44,33 +44,57 @@ namespace picongpu
  *
  * @param ... parameters to pass to kernel
  */
-#define PIC_PMACC_CUDAPARAMS(...) (__VA_ARGS__,mapper);                        \
+#define PIC_CUDAPARAMS(...)                                                    \
+        auto const workDiv =                                                   \
+            ::alpaka::workdiv::WorkDivMembers<                                 \
+                KernelDim,                                                     \
+                ::PMacc::alpaka::IdxSize                                       \
+            >(                                                                 \
+                gridExtent,                                                    \
+                blockExtent,                                                   \
+                ::PMacc::math::Vector<                                         \
+                    ::PMacc::alpaka::IdxSize,                                  \
+                    KernelDim::value                                           \
+                >::create(1u)                                                  \
+            );                                                                 \
+        auto const exec(                                                       \
+            ::alpaka::exec::create<                                            \
+                ::PMacc::alpaka::Acc<                                          \
+                    KernelDim                                                  \
+                >                                                              \
+            >(                                                                 \
+                workDiv,                                                       \
+                theOneAndOnlyKernel,                                           \
+                __VA_ARGS__,                                                   \
+                mapper                                                         \
+            )                                                                  \
+        );                                                                     \
+        ::alpaka::stream::enqueue(taskKernel->getEventStream()->getCudaStream(), exec); \
         PMACC_ACTIVATE_KERNEL                                                  \
     }   /*this is used if call is EventTask.waitforfinished();*/
 
 /**
  * Configures block and grid sizes and shared memory for the kernel.
  *
- * gridsize for kernel call is set by mapper
- *
  * @param block sizes of block on gpu
- * @param ... amount of shared memory for the kernel (optional)
  */
-#define PIC_PMACC_CUDAKERNELCONFIG(block,...) <<<mapper.getGridDim(),(block),  \
-    __VA_ARGS__+0,                                                             \
-    taskKernel->getCudaStream()>>> PIC_PMACC_CUDAPARAMS
+#define PIC_CUDAKERNELCONFIG(block)                                            \
+    const auto&& gridExtent(mapper.getGridDim());                              \
+    const auto&& blockExtent(block);                                           \
+    PIC_CUDAPARAMS
 
 /**
  * Calls a CUDA kernel and creates an EventTask which represents the kernel.
  *
- * gridsize for kernel call is set by mapper
- * last argument of kernel call is add by mapper and is the mapper
- *
- * @param kernelname name of the CUDA kernel (can also used with templates etc. myKernnel<1>)
- * @param area area type for which the kernel is called
+ * @param description local domain description 
+ * @param area which part of the local domain should be mapped (CORE, BORDER, GUARD or a combination)
+ * @param ... name of the CUDA kernel (can also used with templates etc. myKernel<1>)
  */
-#define __picKernelArea(kernelname,description,area) {                               \
-    CUDA_CHECK_KERNEL_MSG(cudaDeviceSynchronize(),"picKernelArea crash before kernel call");       \
-    AreaMapping<area,MappingDesc> mapper(description);                               \
-    TaskKernel *taskKernel =  Environment<>::get().Factory().createTaskKernel(#kernelname);  \
-    kernelname PIC_PMACC_CUDAKERNELCONFIG
+#define __picKernelArea(description,area, ...) {                               \
+    using KernelType = __VA_ARGS__;                                            \
+    const KernelType theOneAndOnlyKernel;                                      \
+    using KernelDim = ::PMacc::alpaka::Dim<KernelType::kernelDim>;                   \
+    AreaMapping<area,MappingDesc> mapper(description);                         \
+    CUDA_CHECK_KERNEL_MSG(::alpaka::wait::wait(::PMacc::Environment<>::get().DeviceManager().getAccDevice()),"Crash before kernel call"); \
+    PMacc::TaskKernel *taskKernel = ::PMacc::Environment<>::get().Factory().createTaskKernel(#__VA_ARGS__);     \
+    PIC_CUDAKERNELCONFIG

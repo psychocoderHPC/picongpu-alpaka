@@ -111,7 +111,7 @@ namespace cellwiseOperation
                 totalCellOffset += m_cellDescription.getSuperCellSize() * m_cellDescription.getBorderSuperCells();
 
             /* start kernel */
-            __picKernelArea((kernelCellwiseOperation<T_OpFunctor>), m_cellDescription, T_Area)
+            __picKernelArea(m_cellDescription, T_Area, kernelCellwiseOperation<T_OpFunctor>)
                     (SuperCellSize::toRT().toDim3())
                     (field->getDeviceDataBox(), opFunctor, valFunctor, totalCellOffset, currentStep);
         }

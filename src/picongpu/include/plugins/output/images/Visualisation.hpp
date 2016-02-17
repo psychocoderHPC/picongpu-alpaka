@@ -523,7 +523,7 @@ public:
         typedef MappingDesc::SuperCellSize SuperCellSize;
         assert(cellDescription != NULL);
         //create image fields
-        __picKernelArea((kernelPaintFields), *cellDescription, CORE + BORDER)
+        __picKernelArea(*cellDescription, CORE + BORDER, kernelPaintFields)
             (SuperCellSize::toRT().toDim3())
             (fieldE->getDeviceDataBox(),
              fieldB->getDeviceDataBox(),
@@ -574,7 +574,7 @@ public:
         DataSpace<DIM2> blockSize2D(blockSize[m_transpose.x()], blockSize[m_transpose.y()]);
 
         //create image particles
-        __picKernelArea((kernelPaintParticles3D), *cellDescription, CORE + BORDER)
+        __picKernelArea(*cellDescription, CORE + BORDER, kernelPaintParticles3D)
             (SuperCellSize::toRT().toDim3(), blockSize2D.productOfComponents() * sizeof (float_X))
             (particles->getDeviceParticlesBox(),
              img->getDeviceBuffer().getDataBox(),
