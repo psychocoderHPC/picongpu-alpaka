@@ -35,7 +35,7 @@ namespace PMacc
 
 struct KernelSetValueOnDeviceMemory
 {
-    static constexpr uint32_t dim = DIM1;
+    static constexpr uint32_t kernelDim = DIM1;
 
     template<
         typename T_Acc
