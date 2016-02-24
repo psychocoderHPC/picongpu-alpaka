@@ -51,7 +51,7 @@ public:
     HostBuffer<TYPE, DIM>(size, size),
     pointer(NULL),ownPointer(true)
     {
-        CUDA_CHECK(cudaMallocHost(&pointer, size.productOfComponents() * sizeof (TYPE)));
+        CUDA_CHECK(cudaMallocHost((void**)&pointer, size.productOfComponents() * sizeof (TYPE)));
         reset(false);
     }
 

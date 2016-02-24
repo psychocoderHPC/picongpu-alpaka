@@ -28,7 +28,6 @@
 #include "pmacc_types.hpp"
 #include "Environment.def"
 
-#include <cuda_runtime.h>
 
 #include <string>
 #include <stdexcept>

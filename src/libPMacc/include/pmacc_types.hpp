@@ -24,6 +24,7 @@
 
 #pragma once
 
+#include <cuda_to_cupla.hpp>
 #include "debug/PMaccVerbose.hpp"
 
 #define BOOST_MPL_LIMIT_VECTOR_SIZE 20
@@ -35,9 +36,6 @@
 // Allows use of C++11/C++98 compatibility macros like BOOST_CONSTEXPR
 #include <boost/config.hpp>
 
-#include <builtin_types.h>
-#include <cuda_runtime.h>
-#include <cuda.h>
 
 #include <stdint.h>
 #include <stdexcept>
@@ -58,9 +56,9 @@ typedef uint64_t id_t;
 typedef unsigned long long int uint64_cu;
 typedef long long int int64_cu;
 
-#define HDINLINE __device__ __host__ __forceinline__
-#define DINLINE __device__ __forceinline__
-#define HINLINE __host__ inline
+#define HDINLINE ALPAKA_FN_HOST_ACC
+#define DINLINE ALPAKA_FN_ACC
+#define HINLINE inline
 
 /**
  * CUDA architecture version (aka PTX ISA level)
@@ -187,8 +185,8 @@ enum EventType
         ((byte)<=64?64:128        \
         ))))))))
 
-#define PMACC_ALIGN(var,...) __optimal_align__(sizeof(__VA_ARGS__)) __VA_ARGS__ var
-#define PMACC_ALIGN8(var,...) __align__(8) __VA_ARGS__ var
+#define PMACC_ALIGN(var,...) alignas(ALPAKA_OPTIMAL_ALIGNMENT(__VA_ARGS__)) __VA_ARGS__ var
+#define PMACC_ALIGN8(var,...) alignas(8) __VA_ARGS__ var
 
 /*! area which is calculated
  *

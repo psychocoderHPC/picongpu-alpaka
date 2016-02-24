@@ -29,13 +29,14 @@
 #include "eventSystem/events/kernelEvents.hpp"
 #include "dimensions/DataSpace.hpp"
 
-#include <cuda_runtime_api.h>
-#include <cuda.h>
-
-__global__ void kernelSetValueOnDeviceMemory(size_t* pointer, const size_t size)
+struct kernelSetValueOnDeviceMemory
+{
+template< typename T_Acc >
+DINLINE void operator()(const T_Acc&, size_t* pointer, const size_t size) const
 {
     *pointer = size;
 }
+};
 
 namespace PMacc
 {
@@ -83,8 +84,8 @@ private:
 
     void setSize()
     {
-        kernelSetValueOnDeviceMemory
-            << < 1, 1, 0, this->getCudaStream() >> >
+        CUPLA_KERNEL(kernelSetValueOnDeviceMemory)
+            ( 1, 1, 0, this->getCudaStream() )
             (destination->getCurrentSizeOnDevicePointer(), size);
 
         activate();

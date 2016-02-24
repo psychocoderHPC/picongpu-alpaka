@@ -56,7 +56,8 @@
  *
  * @param ... parameters to pass to kernel
  */
-#define PMACC_CUDAPARAMS(...) (__VA_ARGS__);                                   \
+#define PMACC_CUDAPARAMS(...)                                                  \
+        CUPLA_KERNEL(ThePMaccKernelName)(gridSize,blockSize,kernelSharedMem,kernelStream)(__VA_ARGS__); \
         PMACC_ACTIVATE_KERNEL                                                  \
     }   /*this is used if call is EventTask.waitforfinished();*/
 
@@ -67,10 +68,12 @@
  * @param block sizes of block on gpu
  * @param ... amount of shared memory for the kernel (optional)
  */
-#define PMACC_CUDAKERNELCONFIG(grid,block,...) <<<(grid),(block),              \
+#define PMACC_CUDAKERNELCONFIG(grid,block,...)                                 \
+    dim3 gridSize(grid);                                            \
+    dim3 blockSize(block);                                          \
     /*we need +0 if VA_ARGS is empty, because we must put in a value*/         \
-    __VA_ARGS__+0,                                                             \
-    taskKernel->getCudaStream()>>> PMACC_CUDAPARAMS
+    size_t kernelSharedMem = __VA_ARGS__+0;                                    \
+    auto kernelStream = taskKernel->getCudaStream(); PMACC_CUDAPARAMS
 
 /**
  * Calls a CUDA kernel and creates an EventTask which represents the kernel.
@@ -80,4 +83,4 @@
 #define __cudaKernel(kernelname) {                                                      \
     CUDA_CHECK_KERNEL_MSG(cudaDeviceSynchronize(),"Crash before kernel call");          \
     PMacc::TaskKernel *taskKernel = PMacc::Environment<>::get().Factory().createTaskKernel(#kernelname);     \
-    kernelname PMACC_CUDAKERNELCONFIG
+    using ThePMaccKernelName = kernelname; PMACC_CUDAKERNELCONFIG

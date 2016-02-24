@@ -28,9 +28,6 @@
 #include "memory/boxes/CachedBox.hpp"
 #include "memory/dataTypes/Mask.hpp"
 
-#include "nvidia/rng/RNG.hpp"
-#include "nvidia/rng/methods/Xor.hpp"
-#include "nvidia/rng/distributions/Uniform_float.hpp"
 
 namespace gol
 {
@@ -38,11 +35,13 @@ namespace gol
     {
         using namespace PMacc;
 
-        template<class BoxReadOnly, class BoxWriteOnly, class Mapping>
-        __global__ void evolution(BoxReadOnly buffRead,
+        struct evolution
+        {
+        template<typename T_Acc, class BoxReadOnly, class BoxWriteOnly, class Mapping>
+        DINLINE void operator()(const T_Acc& acc, BoxReadOnly buffRead,
                                   BoxWriteOnly buffWrite,
                                   uint32_t rule,
-                                  Mapping mapper)
+                                  Mapping mapper) const
         {
             typedef typename BoxReadOnly::ValueType Type;
             typedef SuperCellDescription<
@@ -50,7 +49,7 @@ namespace gol
                     math::CT::Int< 1, 1 >,
                     math::CT::Int< 1, 1 >
                     > BlockArea;
-            PMACC_AUTO(cache, CachedBox::create < 0, Type > (BlockArea()));
+            PMACC_AUTO(cache, CachedBox::create < 0, Type > (acc, BlockArea()));
 
             const Space block(mapper.getSuperCellIndex(Space(blockIdx)));
             const Space blockCell = block * Mapping::SuperCellSize::toRT();
@@ -80,12 +79,15 @@ namespace gol
 
             buffWrite(blockCell + threadIndex) = isLife;
         }
+        };
 
-        template<class BoxWriteOnly, class Mapping>
-        __global__ void randomInit(BoxWriteOnly buffWrite,
+        struct randomInit
+        {
+        template<typename T_Acc,class BoxWriteOnly, class Mapping>
+        DINLINE void operator()(const T_Acc& acc,BoxWriteOnly buffWrite,
                                    uint32_t seed,
                                    float fraction,
-                                   Mapping mapper)
+                                   Mapping mapper) const
         {
             /* get position in grid in units of SuperCells from blockID */
             const Space block(mapper.getSuperCellIndex(Space(blockIdx)));
@@ -98,13 +100,13 @@ namespace gol
                     blockCell + threadIndex);
 
             /* get uniform random number from seed  */
-            PMACC_AUTO(rng, nvidia::rng::create(
-                                nvidia::rng::methods::Xor(seed, cellIdx),
-                                nvidia::rng::distributions::Uniform_float()));
+            auto gen(::alpaka::rand::generator::createDefault(acc, seed, cellIdx));
+            auto rng(::alpaka::rand::distribution::createUniformReal<float>(acc));
 
             /* write 1(white) if uniform random number 0<rng<1 is smaller than 'fraction' */
-            buffWrite(blockCell + threadIndex) = (rng() <= fraction);
+            buffWrite(blockCell + threadIndex) = (rng(gen) <= fraction);
         }
+        };
     }
 
     template<class MappingDesc>

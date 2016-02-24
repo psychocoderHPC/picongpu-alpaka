@@ -24,7 +24,6 @@
 #pragma once
 
 #include "pmacc_types.hpp"
-#include <cuda_runtime.h>
 
 namespace PMacc
 {
