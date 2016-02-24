@@ -22,7 +22,7 @@
 
 #pragma once
 
-#include <cuSTL/container/HostBuffer.hpp>
+//#include <cuSTL/container/HostBuffer.hpp>
 #include "memory/buffers/Buffer.hpp"
 #include "dimensions/DataSpace.hpp"
 
@@ -33,6 +33,9 @@ namespace PMacc
 
     template <class TYPE, unsigned DIM>
     class DeviceBuffer;
+
+    template <class TYPE, unsigned DIM>
+    class Buffer;
 
     /**
      * Interface for a DIM-dimensional Buffer of type TYPE on the host
@@ -69,6 +72,7 @@ namespace PMacc
         {
         };
 
+/*
         HINLINE
         container::HostBuffer<TYPE, DIM>
         cartBuffer()
@@ -81,7 +85,7 @@ namespace PMacc
             container::HostBuffer<TYPE, DIM> result(this->getBasePointer(), this->getDataSpace(), false, pitch);
             return result;
         }
-
+*/
     protected:
 
         /** Constructor.

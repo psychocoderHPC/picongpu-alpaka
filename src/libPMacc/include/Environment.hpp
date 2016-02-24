@@ -38,7 +38,6 @@
 
 #include "Environment.def"
 
-#include <cuda_runtime.h>
 
 namespace PMacc
 {
@@ -184,19 +183,21 @@ private:
 
         int maxTries = num_gpus;
 
-        cudaDeviceProp devProp;
+        //cudaDeviceProp devProp;
+
         cudaError rc;
-        CUDA_CHECK(cudaGetDeviceProperties(&devProp, deviceNumber));
+        //CUDA_CHECK(cudaGetDeviceProperties(&devProp, deviceNumber));
 
         /* if the gpu compute mode is set to default we use the given `deviceNumber` */
-        if (devProp.computeMode == cudaComputeModeDefault)
+        /*if (devProp.computeMode == cudaComputeModeDefault)
             maxTries = 1;
-
+         */
         for (int deviceOffset = 0; deviceOffset < maxTries; ++deviceOffset)
         {
             const int tryDeviceId = (deviceOffset + deviceNumber) % num_gpus;
             rc = cudaSetDevice(tryDeviceId);
-
+            break;
+#if 0
             if(rc == cudaSuccess)
             {
                cudaStream_t stream;
@@ -239,6 +240,7 @@ private:
             {
                 CUDA_CHECK(rc); /*error message*/
             }
+#endif
         }
     }
 };

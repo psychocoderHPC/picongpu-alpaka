@@ -22,7 +22,7 @@
 
 #pragma once
 
-#include <cuSTL/cursor/compile-time/BufferCursor.hpp>
+//#include <cuSTL/cursor/compile-time/BufferCursor.hpp>
 #include <math/vector/Float.hpp>
 #include <math/Vector.hpp>
 #include "pmacc_types.hpp"
@@ -94,10 +94,14 @@ public:
     }
 
     /* This call synchronizes a block and must be called from all threads and not inside a if clauses*/
-    static DINLINE This init()
+    template<typename T_Acc>
+    static DINLINE This init(const T_Acc& acc)
     {
-        __shared__ ValueType mem_sh[Size::x::value];
-        return This((ValueType*) mem_sh);
+        auto& mem_sh = ::alpaka::block::shared::st::allocVar<
+            cupla::Array<ValueType,Size::x::value>,
+            T_id
+        >(acc);
+        return This(&mem_sh[0]);
     }
 
 protected:
@@ -153,19 +157,30 @@ public:
     }
 
     /* This call synchronizes a block and must be called from all threads and not inside a if clauses*/
-    static DINLINE This init()
+    template<typename T_Acc>
+    static DINLINE This init(const T_Acc& acc)
     {
-        __shared__ ValueType mem_sh[Size::y::value][Size::x::value];
-        return This((ValueType*) mem_sh);
+        auto& mem_sh = ::alpaka::block::shared::st::allocVar<
+            cupla::Array<
+                cupla::Array<
+                    ValueType,
+                    Size::x::value
+                >,
+                Size::y::value
+            >,
+            T_id
+        >(acc);
+        return This(&mem_sh[0][0]);
     }
 
+    /*
     HDINLINE PMacc::cursor::CT::BufferCursor<ValueType, ::PMacc::math::CT::Int<sizeof (ValueType) * Size::x::value> >
     toCursor() const
     {
         return PMacc::cursor::CT::BufferCursor<ValueType, ::PMacc::math::CT::Int<sizeof (ValueType) * Size::x::value> >
             ((ValueType*) fixedPointer);
     }
-
+*/
 protected:
 
     PMACC_ALIGN(fixedPointer, ValueType*);
@@ -217,7 +232,7 @@ public:
     {
         return fixedPointer;
     }
-
+/*
     HDINLINE PMacc::cursor::CT::BufferCursor<ValueType, ::PMacc::math::CT::Int<sizeof (ValueType) * Size::x::value,
     sizeof (ValueType) * Size::x::value * Size::y::value> >
     toCursor() const
@@ -226,12 +241,26 @@ public:
             sizeof (ValueType) * Size::x::value * Size::y::value> >
             ((ValueType*)fixedPointer);
     }
-
+*/
     /*this call synchronize a block and must called from any thread and not inside a if clauses*/
-    static DINLINE This init()
+    template<typename T_Acc>
+    static DINLINE This init(const T_Acc& acc)
     {
-        __shared__ ValueType mem_sh[Size::z::value][Size::y::value][Size::x::value];
-        return This((ValueType*) mem_sh);
+        //__shared__ ValueType mem_sh[Size::z::value][Size::y::value][Size::x::value];
+        auto& mem_sh = ::alpaka::block::shared::st::allocVar<
+            cupla::Array<
+                cupla::Array<
+                    cupla::Array<
+                        ValueType,
+                        Size::x::value
+                    >,
+                    Size::y::value
+                >,
+                Size::z::value
+            >,
+            T_id
+        >(acc);
+        return This(&mem_sh[0][0][0]);
     }
 
 protected:

@@ -53,48 +53,13 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH}
 
 
 ################################################################################
-# Find CUDA
+# Find cupla
 ################################################################################
 
-find_package(CUDA 5.0 REQUIRED)
+SET(cupla_ROOT "$ENV{CUPLA_ROOT}" CACHE STRING  "The location of the cupla library")
 
-if(CUDA_VERSION VERSION_LESS 5.5)
-    message(STATUS "CUDA Toolkit < 5.5 detected. We strongly recommend to still "
-                   "use CUDA 5.5+ drivers (319.82 or higher)!")
-endif(CUDA_VERSION VERSION_LESS 5.5)
-
-set(CUDA_ARCH sm_20 CACHE STRING "Set GPU architecture")
-string(COMPARE EQUAL ${CUDA_ARCH} "sm_10" IS_CUDA_ARCH_UNSUPPORTED)
-string(COMPARE EQUAL ${CUDA_ARCH} "sm_11" IS_CUDA_ARCH_UNSUPPORTED)
-string(COMPARE EQUAL ${CUDA_ARCH} "sm_12" IS_CUDA_ARCH_UNSUPPORTED)
-string(COMPARE EQUAL ${CUDA_ARCH} "sm_13" IS_CUDA_ARCH_UNSUPPORTED)
-
-if(IS_CUDA_ARCH_UNSUPPORTED)
-    message(FATAL_ERROR "Unsupported CUDA architecture ${CUDA_ARCH} specified. "
-                       "SM 2.0 or higher is required.")
-endif(IS_CUDA_ARCH_UNSUPPORTED)
-
-set(CUDA_FTZ "--ftz=false" CACHE STRING "Set flush to zero for GPU")
-
-set(CUDA_MATH --use_fast_math CACHE STRING "Enable fast-math" )
-option(CUDA_SHOW_REGISTER "Show kernel registers and create PTX" OFF)
-option(CUDA_KEEP_FILES "Keep all intermediate files that are generated during internal compilation steps (folder: nvcc_tmp)" OFF)
-option(CUDA_SHOW_CODELINES "Show kernel lines in cuda-gdb and cuda-memcheck" OFF)
-
-if(CUDA_SHOW_CODELINES)
-    set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS}" --source-in-ptx -Xcompiler -rdynamic -lineinfo)
-    set(CUDA_KEEP_FILES ON CACHE BOOL "activate keep files" FORCE)
-endif(CUDA_SHOW_CODELINES)
-
-set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} ${nvcc_flags} -arch=${CUDA_ARCH} ${CUDA_MATH} ${CUDA_FTZ})
-if(CUDA_SHOW_REGISTER)
-    set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS}" -Xptxas=-v)
-endif(CUDA_SHOW_REGISTER)
-
-if(CUDA_KEEP_FILES)
-    file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/nvcc_tmp")
-    set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS}" --keep --keep-dir "${PROJECT_BINARY_DIR}/nvcc_tmp")
-endif(CUDA_KEEP_FILES)
+LIST(APPEND CMAKE_MODULE_PATH "${cupla_ROOT}")
+FIND_PACKAGE("cupla" REQUIRED)
 
 
 ################################################################################
@@ -197,7 +162,7 @@ add_definitions(-DPMACC_VERBOSE_LVL=${PMACC_VERBOSE})
 ################################################################################
 
 find_path(PMACC_ROOT_DIR
-  NAMES include/types.h
+  NAMES include/pmacc_types.hpp
   PATHS "${CMAKE_CURRENT_SOURCE_DIR}/../../../libPMacc"
   DOC "libPMacc root location."
   )
@@ -250,16 +215,23 @@ endif()
 
 include_directories(include)
 
-file(GLOB CUDASRCFILES "*.cu")
 file(GLOB SRCFILES "*.cpp")
 
-cuda_add_executable(gameOfLife
-    ${CUDASRCFILES}
+
+include_directories(${cupla_INCLUDE_DIRS})
+
+add_definitions(
+    ${cupla_DEFINITIONS})
+# Always add all files to the target executable build call to add them to the build project.
+alpaka_add_executable(
+    "gameOfLife"
     ${SRCFILES}
-)
+    ${cupla_SOURCE_FILES})
 
-target_link_libraries(gameOfLife  ${LIBS} ${CUDA_CUDART_LIBRARY} z m ${MPI_EXTRA_LIBRARY})
-
+# Set the link libraries for this library (adds libs, include directories, defines and compile options).
+target_link_libraries(
+    "gameOfLife"
+    PUBLIC ${_cupla_LINK_LIBRARIES_PUBLIC} ${LIBS} z m ${MPI_EXTRA_LIBRARY})
 
 ################################################################################
 # Install GoL

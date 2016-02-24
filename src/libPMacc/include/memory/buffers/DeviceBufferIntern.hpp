@@ -105,6 +105,16 @@ public:
         __startOperation(ITask::TASK_CUDA);
         if (!preserveData)
         {
+            TYPE value;
+            /* using `uint8_t` for byte-wise looping through tmp var value of `TYPE` */
+            uint8_t* valuePtr = (uint8_t*)&value;
+            for( size_t b = 0; b < sizeof(TYPE); ++b)
+            {
+                valuePtr[b] = static_cast<uint8_t>(0);
+            }
+            /* set value with zero-ed `TYPE` */
+            setValue(value);
+            /*
             if (DIM == DIM1)
             {
                 CUDA_CHECK(cudaMemset(data.ptr, 0, this->getDataSpace()[0] * sizeof (TYPE)));
@@ -120,7 +130,8 @@ public:
                 extent.height = this->getDataSpace()[1];
                 extent.depth = this->getDataSpace()[2];
                 CUDA_CHECK(cudaMemset3D(data, 0, extent));
-            }
+            }*/
+
         }
     }
 
@@ -256,13 +267,13 @@ private:
         if (DIM == DIM1)
         {
             log<ggLog::MEMORY >("Create device 1D data: %1% MiB") % (data.xsize / 1024 / 1024);
-            CUDA_CHECK(cudaMallocPitch(&data.ptr, &data.pitch, data.xsize, 1));
+            CUDA_CHECK(cudaMallocPitch((void**)&data.ptr, &data.pitch, data.xsize, 1));
         }
         if (DIM == DIM2)
         {
             data.ysize = this->getDataSpace()[1];
             log<ggLog::MEMORY >("Create device 2D data: %1% MiB") % (data.xsize * data.ysize / 1024 / 1024);
-            CUDA_CHECK(cudaMallocPitch(&data.ptr, &data.pitch, data.xsize, data.ysize));
+            CUDA_CHECK(cudaMallocPitch((void**)&data.ptr, &data.pitch, data.xsize, data.ysize));
 
         }
         if (DIM == DIM3)
@@ -290,7 +301,7 @@ private:
         data.ysize = 1;
 
         log<ggLog::MEMORY >("Create device fake data: %1% MiB") % (this->getDataSpace().productOfComponents() * sizeof (TYPE) / 1024 / 1024);
-        CUDA_CHECK(cudaMallocPitch(&data.ptr, &data.pitch, this->getDataSpace().productOfComponents() * sizeof (TYPE), 1));
+        CUDA_CHECK(cudaMallocPitch((void**)&data.ptr, &data.pitch, this->getDataSpace().productOfComponents() * sizeof (TYPE), 1));
 
         //fake the pitch, thus we can use this 1D Buffer as 2D or 3D
         data.pitch = this->getDataSpace()[0] * sizeof (TYPE);
@@ -310,7 +321,7 @@ private:
 
         if (sizeOnDevice)
         {
-            CUDA_CHECK(cudaMalloc(&sizeOnDevicePtr, sizeof (size_t)));
+            CUDA_CHECK(cudaMalloc((void**)&sizeOnDevicePtr, sizeof (size_t)));
         }
         setCurrentSize(this->getDataSpace().productOfComponents());
     }

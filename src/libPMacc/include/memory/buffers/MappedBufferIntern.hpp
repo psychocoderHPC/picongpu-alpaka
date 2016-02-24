@@ -57,7 +57,7 @@ public:
     DeviceBuffer<TYPE, DIM>(size, size),
     pointer(NULL), ownPointer(true)
     {
-        CUDA_CHECK(cudaMallocHost(&pointer, size.productOfComponents() * sizeof (TYPE), cudaHostAllocMapped));
+        CUDA_CHECK(cudaMallocHost((void**)&pointer, size.productOfComponents() * sizeof (TYPE), cudaHostAllocMapped));
         reset(false);
     }
 
