@@ -33,8 +33,6 @@
 #include <boost/type_traits/remove_pointer.hpp>
 #include <boost/type_traits.hpp>
 
-#include <cuda_runtime_api.h>
-#include <cuda.h>
 
 namespace PMacc
 {
@@ -82,8 +80,10 @@ getValue(T_Type& value)
 
 }
 
-template <class DataBox, typename T_ValueType, typename Space>
-__global__ void kernelSetValue(DataBox data, const T_ValueType value, const Space size)
+struct kernelSetValue
+{
+template <typename T_Acc, class DataBox, typename T_ValueType, typename Space>
+DINLINE void operator()(const T_Acc& acc, DataBox data, const T_ValueType value, const Space size) const
 {
     const Space threadIndex(threadIdx);
     const Space blockIndex(blockIdx);
@@ -95,6 +95,7 @@ __global__ void kernelSetValue(DataBox data, const T_ValueType value, const Spac
         return;
     data(idx) = taskSetValueHelper::getValue(value);
 }
+};
 
 
 template <class TYPE, unsigned DIM>
@@ -179,7 +180,7 @@ public:
         /* line wise thread blocks*/
         gridSize.x = ceil(double(gridSize.x) / 256.);
 
-        kernelSetValue << <gridSize, 256, 0, this->getCudaStream() >> >
+        CUPLA_KERNEL(kernelSetValue)(gridSize, 256, 0, this->getCudaStream())
             (this->destination->getDataBox(), this->value, area_size);
 
         this->activate();
@@ -223,13 +224,13 @@ public:
 
         ValueType* devicePtr = this->destination->getPointer();
 
-        CUDA_CHECK(cudaMallocHost(&valuePointer_host, sizeof (ValueType)));
+        CUDA_CHECK(cudaMallocHost((void**)&valuePointer_host, sizeof (ValueType)));
         *valuePointer_host = this->value; //copy value to new place
 
         CUDA_CHECK(cudaMemcpyAsync(
                                    devicePtr, valuePointer_host, sizeof (ValueType),
                                    cudaMemcpyHostToDevice, this->getCudaStream()));
-        kernelSetValue << <gridSize, 256, 0, this->getCudaStream() >> >
+        CUPLA_KERNEL(kernelSetValue)(gridSize, 256, 0, this->getCudaStream() )
             (this->destination->getDataBox(), devicePtr, area_size);
 
         this->activate();

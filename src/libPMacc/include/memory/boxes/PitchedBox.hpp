@@ -25,7 +25,7 @@
 
 #include "pmacc_types.hpp"
 #include "dimensions/DataSpace.hpp"
-#include <cuSTL/cursor/BufferCursor.hpp>
+//#include <cuSTL/cursor/BufferCursor.hpp>
 
 namespace PMacc
 {
@@ -233,13 +233,14 @@ public:
         return fixedPointer;
     }
 
+/*
     HDINLINE PMacc::cursor::BufferCursor<TYPE, DIM3>
     toCursor() const
     {
         return PMacc::cursor::BufferCursor<TYPE, DIM3>
             ((TYPE*)fixedPointer, ::PMacc::math::Size_t<2>(pitch, pitch2D));
     }
-
+*/
 protected:
 
     HDINLINE PitchedBox<TYPE, DIM2> reduceZ(const int zOffset) const

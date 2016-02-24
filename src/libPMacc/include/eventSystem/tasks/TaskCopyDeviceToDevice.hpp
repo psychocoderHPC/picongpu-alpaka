@@ -28,7 +28,6 @@
 #include "eventSystem/tasks/StreamTask.hpp"
 #include "pmacc_types.hpp"
 
-#include <cuda_runtime_api.h>
 
 namespace PMacc
 {

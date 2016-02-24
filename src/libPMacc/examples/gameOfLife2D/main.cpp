@@ -19,6 +19,7 @@
  * If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <cuda_to_cupla.hpp>
 #include "types.hpp"
 #include <iostream>
 
