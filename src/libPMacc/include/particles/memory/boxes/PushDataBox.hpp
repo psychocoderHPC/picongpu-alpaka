@@ -24,7 +24,6 @@
 
 
 #pragma once
-#include <cuda.h>
 
 #include "particles/memory/boxes/TileDataBox.hpp"
 

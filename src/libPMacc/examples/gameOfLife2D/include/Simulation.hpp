@@ -47,7 +47,7 @@ class Simulation
 {
 private:
     /* math::CT::Int<16,16> is arbitrarily chosen SuperCellSize! */
-    typedef MappingDescription<DIM2, math::CT::Int< 16, 16 > > MappingDesc;
+    typedef MappingDescription<DIM2, math::CT::Int< 4, 4 > > MappingDesc;
     typedef Evolution<MappingDesc> Evolutiontype;
 
     Space gridSize;
