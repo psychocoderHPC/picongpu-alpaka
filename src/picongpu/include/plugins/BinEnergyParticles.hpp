@@ -30,7 +30,6 @@
 #include "pmacc_types.hpp"
 #include "simulation_defines.hpp"
 #include "simulation_types.hpp"
-#include "basicOperations.hpp"
 #include "dimensions/DataSpace.hpp"
 
 #include "simulation_classTypes.hpp"
@@ -51,25 +50,29 @@ using namespace PMacc;
 
 namespace po = boost::program_options;
 
+
+struct kernelBinEnergyParticles
+{
 /* sum up the energy of all particles
  * the kinetic energy of all active particles will be calculated
  */
-template<class ParBox, class BinBox, class Mapping>
-__global__ void kernelBinEnergyParticles(ParBox pb,
+template<class ParBox, class BinBox, class Mapping, typename T_Acc>
+DINLINE void operator()(const T_Acc& acc,
+                                         ParBox pb,
                                          BinBox gBins, int numBins,
                                          float_X minEnergy,
                                          float_X maxEnergy,
                                          float_X maximumSlopeToDetectorX,
                                          float_X maximumSlopeToDetectorZ,
-                                         Mapping mapper)
+                                         Mapping mapper) const
 {
 
     typedef typename MappingDesc::SuperCellSize Block;
     typedef typename ParBox::FramePtr FramePtr;
 
-    __shared__ typename PMacc::traits::GetEmptyDefaultConstructibleType<FramePtr>::type frame;
+    sharedMem(frame, typename PMacc::traits::GetEmptyDefaultConstructibleType<FramePtr>::type);
 
-    __shared__ lcellId_t particlesInSuperCell;
+    sharedMem(particlesInSuperCell, lcellId_t);
 
     const bool enableDetector = maximumSlopeToDetectorX != float_X(0.0) && maximumSlopeToDetectorZ != float_X(0.0);
 
@@ -77,7 +80,7 @@ __global__ void kernelBinEnergyParticles(ParBox pb,
      * 0 is for <minEnergy
      * (numBins+2)-1 is for >maxEnergy
      */
-    extern __shared__ float_X shBin[]; /* size must be numBins+2 because we have <min and >max */
+    sharedMemExtern(shBin,float_X); /* size must be numBins+2 because we have <min and >max */
 
     int realNumBins = numBins + 2;
 
@@ -172,7 +175,7 @@ __global__ void kernelBinEnergyParticles(ParBox pb,
                 /* overflow for big weighting reduces in shared mem */
                 /* atomicAdd(&(shBin[binNumber]), (uint32_t) weighting); */
                 const float_X normedWeighting = float_X(weighting) / float_X(particles::TYPICAL_NUM_PARTICLES_PER_MACROPARTICLE);
-                atomicAddWrapper(&(shBin[binNumber]), normedWeighting);
+                atomicAdd(&(shBin[binNumber]), normedWeighting);
             }
         }
         __syncthreads();
@@ -187,10 +190,11 @@ __global__ void kernelBinEnergyParticles(ParBox pb,
     __syncthreads();
     for (int i = linearThreadIdx; i < realNumBins; i += threads)
     {
-        atomicAddWrapper(&(gBins[i]), float_64(shBin[i]));
+        atomicAdd(&(gBins[i]), float_64(shBin[i]));
     }
     __syncthreads();
 }
+};
 
 template<class ParticlesType>
 class BinEnergyParticles : public ISimulationPlugin
@@ -406,7 +410,7 @@ private:
         const float_X minEnergy = minEnergy_keV * UNITCONV_keV_to_Joule / UNIT_ENERGY;
         const float_X maxEnergy = maxEnergy_keV * UNITCONV_keV_to_Joule / UNIT_ENERGY;
 
-        __picKernelArea(kernelBinEnergyParticles, *cellDescription, AREA)
+        __picKernelArea(kernelBinEnergyParticles)( *cellDescription, AREA)
             (block, (realNumBins) * sizeof (float_X))
             (particles->getDeviceParticlesBox(),
              gBins->getDeviceBuffer().getDataBox(), numBins, minEnergy,

@@ -40,12 +40,15 @@ namespace PMacc
 
             namespace kernel
             {
-
-                template<typename Type, typename Src, typename Dest, class Functor, class Functor2>
-                __global__ void reduce(
+                template< typename Type >
+                struct reduce
+                {
+                template< typename Src, typename Dest, class Functor, class Functor2, typename T_Acc>
+                DINLINE void operator()(
+                                       const T_Acc& acc,
                                        Src src, const uint32_t src_count,
                                        Dest dest,
-                                       Functor func, Functor2 func2)
+                                       Functor func, Functor2 func2) const
                 {
                     const uint32_t localId = threadIdx.x;
                     const uint32_t tid = blockIdx.x * blockDim.x + localId;
@@ -54,23 +57,25 @@ namespace PMacc
                     /* cuda can not handle extern shared memory were the type is
                      * defined by a template
                      * - therefore we use type int for the definition (dirty but OK) */
-                    extern __shared__ int s_mem_extern[];
+                    sharedMemExtern(s_mem,Type);
                     /* create a pointer with the right type*/
-                    Type* s_mem=(Type*)s_mem_extern;
+                    //Type* s_mem=(Type*)s_mem_extern;
 
-                    if (tid >= src_count)
-                        return; /*end not needed threads*/
+                    bool isActive = (tid < src_count);
 
-                    /*fill shared mem*/
-                    Type r_value = src[tid];
-                    /*reduce not read global memory to shared*/
-                    uint32_t i = tid + globalThreadCount;
-                    while (i < src_count)
+                    if(isActive)
                     {
-                        func(r_value, src[i]);
-                        i += globalThreadCount;
+                        /*fill shared mem*/
+                        Type r_value = src[tid];
+                        /*reduce not read global memory to shared*/
+                        uint32_t i = tid + globalThreadCount;
+                        while (i < src_count)
+                        {
+                            func(r_value, src[i]);
+                            i += globalThreadCount;
+                        }
+                        s_mem[localId] = r_value;
                     }
-                    s_mem[localId] = r_value;
                     __syncthreads();
                     /*now reduce shared memory*/
                     uint32_t chunk_count = blockDim.x;
@@ -79,19 +84,20 @@ namespace PMacc
                     {
                         /* Half number of chunks (rounded down) */
                         uint32_t active_threads = chunk_count / 2;
-                        if (localId >= active_threads)
-                            return; /*end not needed threads*/
+                        isActive = isActive && !(localId != 0 && localId >= active_threads);
 
                         /* New chunks is half number of chunks rounded up for uneven counts
                          * --> local_tid=0 will reduce the single element for an odd number of values at the end */
                         chunk_count = (chunk_count + 1) / 2;
-                        func(s_mem[localId], s_mem[localId + chunk_count]);
+                        if(isActive)
+                            func(s_mem[localId], s_mem[localId + chunk_count]);
 
                         __syncthreads();
                     }
-
-                    func2(dest[blockIdx.x], s_mem[0]);
+                    if (isActive)
+                        func2(dest[blockIdx.x], s_mem[0]);
                 }
+                };
             }
 
             class Reduce
@@ -144,7 +150,7 @@ namespace PMacc
 
                     uint32_t blocks = threads / 2 / blockcount;
                     if (blocks == 0) blocks = 1;
-                    __cudaKernel((kernel::reduce < Type >))(blocks, blockcount, blockcount * sizeof (Type))(src, n, dest, func,
+                    __cudaKernel(kernel::reduce< Type >)(blocks, blockcount, blockcount * sizeof (Type))(src, n, dest, func,
                                                                                                             PMacc::nvidia::functors::Assign());
                     n = blocks;
                     blockcount = optimalThreadsPerBlock(n, sizeof (Type));
@@ -161,13 +167,13 @@ namespace PMacc
                             uint32_t problemSize = n - (blockOffset * blockcount);
                             Type* srcPtr = dest + (blockOffset * blockcount);
 
-                            __cudaKernel((kernel::reduce < Type >))(useBlocks, blockcount, blockcount * sizeof (Type))(srcPtr, problemSize, dest, func, func);
+                            __cudaKernel(kernel::reduce< Type >)(useBlocks, blockcount, blockcount * sizeof (Type))(srcPtr, problemSize, dest, func, func);
                             blocks = blockOffset*blockcount;
                         }
                         else
                         {
 
-                            __cudaKernel((kernel::reduce < Type >))(blocks, blockcount, blockcount * sizeof (Type))(dest, n, dest, func,
+                            __cudaKernel(kernel::reduce< Type >)(blocks, blockcount, blockcount * sizeof (Type))(dest, n, dest, func,
                                                                                                                     PMacc::nvidia::functors::Assign());
                         }
 

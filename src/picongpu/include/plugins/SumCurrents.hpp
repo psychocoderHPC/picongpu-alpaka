@@ -42,12 +42,14 @@ namespace po = boost::program_options;
 
 typedef FieldJ::DataBoxType J_DataBox;
 
-template<class Mapping>
-__global__ void kernelSumCurrents(J_DataBox fieldJ, float3_X* gCurrent, Mapping mapper)
+struct kernelSumCurrents
+{
+template<class Mapping, typename T_Acc>
+DINLINE void operator()(const T_Acc& acc, J_DataBox fieldJ, float3_X* gCurrent, Mapping mapper) const
 {
     typedef typename Mapping::SuperCellSize SuperCellSize;
 
-    __shared__ float3_X sh_sumJ;
+    sharedMem(sh_sumJ, float3_X);
 
     const DataSpace<simDim > threadIndex(threadIdx);
     const int linearThreadIdx = DataSpaceOperations<simDim>::template map<SuperCellSize > (threadIndex);
@@ -65,19 +67,20 @@ __global__ void kernelSumCurrents(J_DataBox fieldJ, float3_X* gCurrent, Mapping 
 
     const float3_X myJ = fieldJ(cell);
 
-    atomicAddWrapper(&(sh_sumJ.x()), myJ.x());
-    atomicAddWrapper(&(sh_sumJ.y()), myJ.y());
-    atomicAddWrapper(&(sh_sumJ.z()), myJ.z());
+    atomicAdd(&(sh_sumJ.x()), myJ.x());
+    atomicAdd(&(sh_sumJ.y()), myJ.y());
+    atomicAdd(&(sh_sumJ.z()), myJ.z());
 
     __syncthreads();
 
     if (linearThreadIdx == 0)
     {
-        atomicAddWrapper(&(gCurrent->x()), sh_sumJ.x());
-        atomicAddWrapper(&(gCurrent->y()), sh_sumJ.y());
-        atomicAddWrapper(&(gCurrent->z()), sh_sumJ.z());
+        atomicAdd(&(gCurrent->x()), sh_sumJ.x());
+        atomicAdd(&(gCurrent->y()), sh_sumJ.y());
+        atomicAdd(&(gCurrent->z()), sh_sumJ.z());
     }
 }
+};
 
 class SumCurrents : public ILightweightPlugin
 {
@@ -184,7 +187,7 @@ private:
         sumcurrents->getDeviceBuffer().setValue(float3_X::create(0.0));
         dim3 block(MappingDesc::SuperCellSize::toRT().toDim3());
 
-        __picKernelArea(kernelSumCurrents, *cellDescription, CORE + BORDER)
+        __picKernelArea(kernelSumCurrents)( *cellDescription, CORE + BORDER)
             (block)
             (fieldJ->getDeviceDataBox(),
              sumcurrents->getDeviceBuffer().getBasePointer());

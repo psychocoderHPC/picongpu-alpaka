@@ -64,7 +64,9 @@
 #include "algorithms/ForEach.hpp"
 #include "particles/ParticlesFunctors.hpp"
 #include "particles/InitFunctors.hpp"
+#if (PMACC_CUDA_ENABLED == 1)
 #include "particles/memory/buffers/MallocMCBuffer.hpp"
+#endif
 #include "particles/traits/FilterByFlag.hpp"
 #include "particles/IdProvider.hpp"
 
@@ -95,7 +97,9 @@ public:
     fieldE(NULL),
     fieldJ(NULL),
     fieldTmp(NULL),
+#if (PMACC_CUDA_ENABLED == 1)
     mallocMCBuffer(NULL),
+#endif
     myFieldSolver(NULL),
     myCurrentInterpolation(NULL),
     pushBGField(NULL),
@@ -249,9 +253,9 @@ public:
         __delete(fieldJ);
 
         __delete(fieldTmp);
-
+#if (PMACC_CUDA_ENABLED == 1)
         __delete(mallocMCBuffer);
-
+#endif
         __delete(myFieldSolver);
 
         __delete(myCurrentInterpolation);
@@ -312,9 +316,10 @@ public:
             log<picLog::MEMORY > ("RAM is NOT shared between GPU and host.");
 
         // initializing the heap for particles
+#if (PMACC_CUDA_ENABLED == 1)
         mallocMC::initHeap(heapSize);
         this->mallocMCBuffer = new MallocMCBuffer();
-
+#endif
         ForEach<VectorAllSpecies, particles::CallCreateParticleBuffer<bmpl::_1>, MakeIdentifier<bmpl::_1> > createParticleBuffer;
         createParticleBuffer(forward(particleStorage));
 
@@ -398,8 +403,8 @@ public:
             else
             {
                 initialiserController->init();
-                ForEach<particles::InitPipeline, particles::CallFunctor<bmpl::_1> > initSpecies;
-                initSpecies(forward(particleStorage), step);
+                //ForEach<particles::InitPipeline, particles::CallFunctor<bmpl::_1> > initSpecies;
+                //initSpecies(forward(particleStorage), step);
             }
         }
 
@@ -431,7 +436,9 @@ public:
 
     virtual ~MySimulation()
     {
+#if (PMACC_CUDA_ENABLED == 1)
         mallocMC::finalizeHeap();
+#endif
     }
 
     /**
@@ -443,6 +450,7 @@ public:
     {
         namespace nvfct = PMacc::nvidia::functors;
 
+#if 0
         /* Initialize ionization routine for each species with the flag `ionizer<>` */
         typedef typename PMacc::particles::traits::FilterByFlag
         <
@@ -460,8 +468,8 @@ public:
                 particles::CallSynchrotronPhotons<bmpl::_1>,
                 MakeIdentifier<bmpl::_1> > synchrotronRadiation;
         synchrotronRadiation(forward(particleStorage), cellDescription, currentStep, this->synchrotronFunctions);
-
-
+#endif
+#if 0
         EventTask initEvent = __getTransactionEvent();
         EventTask updateEvent;
         EventTask commEvent;
@@ -471,6 +479,7 @@ public:
         pushAllSpecies(particleStorage, currentStep, initEvent, updateEvent, commEvent);
 
         __setTransactionEvent(updateEvent);
+#endif
         /** remove background field for particle pusher */
         (*pushBGField)(fieldE, nvfct::Sub(), FieldBackgroundE(fieldE->getUnit()),
                        currentStep, FieldBackgroundE::InfluenceParticlePusher);
@@ -479,10 +488,12 @@ public:
 
         this->myFieldSolver->update_beforeCurrent(currentStep);
 
+#if (ENABLE_CURRENT == 1)
         FieldJ::ValueType zeroJ( FieldJ::ValueType::create(0.) );
         fieldJ->assign( zeroJ );
+#endif
 
-        __setTransactionEvent(commEvent);
+//        __setTransactionEvent(commEvent);
         (*currentBGField)(fieldJ, nvfct::Add(), FieldBackgroundJ(fieldJ->getUnit()),
                           currentStep, FieldBackgroundJ::activated);
 #if (ENABLE_CURRENT == 1)
@@ -555,8 +566,10 @@ public:
 
         fieldB->reset(currentStep);
         fieldE->reset(currentStep);
+#if 0
         ForEach<VectorAllSpecies, particles::CallReset<bmpl::_1>, MakeIdentifier<bmpl::_1> > callReset;
         callReset(forward(particleStorage), currentStep);
+#endif
     }
 
     void slide(uint32_t currentStep)
@@ -612,7 +625,9 @@ protected:
     FieldE *fieldE;
     FieldJ *fieldJ;
     FieldTmp *fieldTmp;
+#if (PMACC_CUDA_ENABLED == 1)
     MallocMCBuffer *mallocMCBuffer;
+#endif
 
     // field solver
     fieldSolver::FieldSolver* myFieldSolver;

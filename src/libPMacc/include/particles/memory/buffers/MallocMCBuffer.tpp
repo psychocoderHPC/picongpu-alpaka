@@ -59,7 +59,7 @@ void MallocMCBuffer::synchronize( )
          * but with the some result (create page-locked memory)
          */
         hostPtr = new char[deviceHeapInfo.size];
-        CUDA_CHECK(cudaHostRegister(hostPtr, deviceHeapInfo.size, cudaHostRegisterDefault));
+//        CUDA_CHECK(cudaHostRegister(hostPtr, deviceHeapInfo.size, cudaHostRegisterDefault));
 
 
         this->hostBufferOffset = static_cast<int64_t>(reinterpret_cast<char*>(deviceHeapInfo.p) - hostPtr);

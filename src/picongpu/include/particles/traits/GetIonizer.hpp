@@ -28,8 +28,8 @@
 #include "simulation_defines/param/speciesDefinition.param"
 #include "simulation_defines/unitless/speciesDefinition.unitless"
 
-#include "particles/ionization/byField/ionizers.def"
-#include "particles/ionization/byField/ionizers.hpp"
+//#include "particles/ionization/byField/ionizers.def"
+//#include "particles/ionization/byField/ionizers.hpp"
 
 namespace picongpu
 {

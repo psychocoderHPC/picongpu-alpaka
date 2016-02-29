@@ -302,7 +302,7 @@ void FieldJ::computeCurrent( ParticlesClass &parClass, uint32_t )
 
     do
     {
-        __cudaKernel( ( kernelComputeCurrent<workerMultiplier, BlockArea, AREA> ) )
+        __cudaKernel( kernelComputeCurrent<workerMultiplier, BlockArea, AREA> )
             ( mapper.getGridDim( ), blockSize )
             ( jBox,
               pBox, solver, mapper );
@@ -314,7 +314,7 @@ void FieldJ::computeCurrent( ParticlesClass &parClass, uint32_t )
 template<uint32_t AREA, class T_CurrentInterpolation>
 void FieldJ::addCurrentToEMF( T_CurrentInterpolation& myCurrentInterpolation )
 {
-    __picKernelArea( ( kernelAddCurrentToEMF ),
+    __picKernelArea( kernelAddCurrentToEMF )(
                      cellDescription,
                      AREA )
         ( MappingDesc::SuperCellSize::toRT( ).toDim3( ) )

@@ -34,7 +34,6 @@
 #include "memory/boxes/DataBox.hpp"
 #include "memory/boxes/CachedBox.hpp"
 
-#include <curand_kernel.h>
 
 #include "nvidia/functors/Assign.hpp"
 #include "mappings/threads/ThreadCollective.hpp"
@@ -43,10 +42,6 @@
 #if(ENABLE_RADIATION == 1)
 #include "plugins/radiation/particles/PushExtension.hpp"
 #endif
-
-#include "nvidia/rng/RNG.hpp"
-#include "nvidia/rng/methods/Xor.hpp"
-#include "nvidia/rng/distributions/Normal_float.hpp"
 
 #include "particles/operations/Assign.hpp"
 #include "particles/operations/Deselect.hpp"
@@ -58,16 +53,18 @@ namespace picongpu
 
 using namespace PMacc;
 
-template<class T_MyParBox, class T_OtherFrameBox, class T_ManipulateFunctor, class Mapping>
-__global__ void kernelDeriveParticles(T_MyParBox myBox, T_OtherFrameBox otherBox, T_ManipulateFunctor manipulateFunctor, Mapping mapper)
+struct kernelDeriveParticles
+{
+template<class T_MyParBox, class T_OtherFrameBox, class T_ManipulateFunctor, class Mapping, typename T_Acc>
+DINLINE void operator()(const T_Acc& acc, T_MyParBox myBox, T_OtherFrameBox otherBox, T_ManipulateFunctor manipulateFunctor, Mapping mapper) const
 {
     using namespace PMacc::particles::operations;
     typedef typename T_MyParBox::FramePtr MyFramePtr;
     typedef typename T_OtherFrameBox::FramePtr OtherFramePtr;
 
-    __shared__ typename PMacc::traits::GetEmptyDefaultConstructibleType<OtherFramePtr>::type frame;
+    sharedMem(frame, typename PMacc::traits::GetEmptyDefaultConstructibleType<OtherFramePtr>::type);
 
-    __shared__ typename PMacc::traits::GetEmptyDefaultConstructibleType<MyFramePtr>::type myFrame;
+    sharedMem(myFrame, typename PMacc::traits::GetEmptyDefaultConstructibleType<MyFramePtr>::type);
 
 
     typedef typename Mapping::SuperCellSize SuperCellSize;
@@ -94,7 +91,7 @@ __global__ void kernelDeriveParticles(T_MyParBox myBox, T_OtherFrameBox otherBox
         const DataSpace<simDim> localCellIdx = block * SuperCellSize::toRT()
             + DataSpaceOperations<simDim>::map<SuperCellSize>(threadIdx.x)
             - mapper.getGuardingSuperCells() * SuperCellSize::toRT();
-        manipulateFunctor(localCellIdx,
+        manipulateFunctor(acc, localCellIdx,
                           parDest, parSrc,
                           true, parSrc[multiMask_] == 1);
 
@@ -102,7 +99,7 @@ __global__ void kernelDeriveParticles(T_MyParBox myBox, T_OtherFrameBox otherBox
 
         if (threadIdx.x == 0)
         {
-            myBox.setAsLastFrame(myFrame, block);
+            myBox.setAsLastFrame(acc, myFrame, block);
 
             frame = otherBox.getNextFrame(frame);
             if (frame.isValid())
@@ -113,15 +110,19 @@ __global__ void kernelDeriveParticles(T_MyParBox myBox, T_OtherFrameBox otherBox
         __syncthreads();
     }
 }
+};
 
+struct kernelManipulateAllParticles
+{
 /* kernel must called with one dimension for blockSize */
-template<typename T_ParticleFunctor,typename T_ParBox,  class Mapping>
-__global__ void kernelManipulateAllParticles(T_ParBox pb,
+template<typename T_ParticleFunctor,typename T_ParBox,  class Mapping, typename T_Acc>
+DINLINE void operator()(const T_Acc& acc,
+                                             T_ParBox pb,
                                              T_ParticleFunctor particleFunctor,
-                                             Mapping mapper)
+                                             Mapping mapper) const
 {
     typedef typename T_ParBox::FramePtr FramePtr;
-    __shared__ typename PMacc::traits::GetEmptyDefaultConstructibleType<FramePtr>::type frame;
+    sharedMem(frame, typename PMacc::traits::GetEmptyDefaultConstructibleType<FramePtr>::type);
 
     typedef typename Mapping::SuperCellSize SuperCellSize;
 
@@ -153,7 +154,7 @@ __global__ void kernelManipulateAllParticles(T_ParBox pb,
     while (frame.isValid())
     {
         PMACC_AUTO(particle, frame[linearThreadIdx]);
-        particleFunctor(localCellIdx, particle, particle, isParticle, isParticle);
+        particleFunctor(acc, localCellIdx, particle, particle, isParticle, isParticle);
 
         __syncthreads();
         if (linearThreadIdx == 0)
@@ -164,13 +165,18 @@ __global__ void kernelManipulateAllParticles(T_ParBox pb,
         __syncthreads();
     }
 }
+};
 
-template<class BlockDescription_, class ParBox, class BBox, class EBox, class Mapping, class FrameSolver>
-__global__ void kernelMoveAndMarkParticles(ParBox pb,
+template<typename BlockDescription_>
+struct kernelMoveAndMarkParticles
+{
+template< class ParBox, class BBox, class EBox, class Mapping, class FrameSolver, typename T_Acc>
+DINLINE void operator()(const T_Acc& acc,
+                                           ParBox pb,
                                            EBox fieldE,
                                            BBox fieldB,
                                            FrameSolver frameSolver,
-                                           Mapping mapper)
+                                           Mapping mapper) const
 {
     /* definitions for domain variables, like indices of blocks and threads
      *
@@ -191,7 +197,7 @@ __global__ void kernelMoveAndMarkParticles(ParBox pb,
 
     FramePtr frame;
 
-    __shared__ int mustShift;
+    sharedMem(mustShift, int);
     lcellId_t particlesInSuperCell;
 
 
@@ -202,8 +208,8 @@ __global__ void kernelMoveAndMarkParticles(ParBox pb,
     frame = pb.getLastFrame(block);
     particlesInSuperCell = pb.getSuperCell(block).getSizeLastFrame();
 
-    PMACC_AUTO(cachedB, CachedBox::create < 0, typename BBox::ValueType > (BlockDescription_()));
-    PMACC_AUTO(cachedE, CachedBox::create < 1, typename EBox::ValueType > (BlockDescription_()));
+    PMACC_AUTO(cachedB, CachedBox::create < 0, typename BBox::ValueType > (acc, BlockDescription_()));
+    PMACC_AUTO(cachedE, CachedBox::create < 1, typename EBox::ValueType > (acc, BlockDescription_()));
 
     __syncthreads();
     if (!frame.isValid())
@@ -233,7 +239,7 @@ __global__ void kernelMoveAndMarkParticles(ParBox pb,
     {
         if (linearThreadIdx < particlesInSuperCell)
         {
-            frameSolver(*frame, linearThreadIdx, cachedB, cachedE, mustShift);
+            frameSolver(acc, *frame, linearThreadIdx, cachedB, cachedE, mustShift);
         }
         frame = pb.getPreviousFrame(frame);
         particlesInSuperCell = PMacc::math::CT::volume<SuperCellSize>::type::value;
@@ -246,13 +252,14 @@ __global__ void kernelMoveAndMarkParticles(ParBox pb,
         pb.getSuperCell(mapper.getSuperCellIndex(DataSpace<simDim > (blockIdx))).setMustShift(true);
     }
 }
+};
 
 template<class PushAlgo, class TVec, class T_Field2ParticleInterpolation>
 struct PushParticlePerFrame
 {
 
-    template<class FrameType, class BoxB, class BoxE >
-    DINLINE void operator()(FrameType& frame, int localIdx, BoxB& bBox, BoxE& eBox, int& mustShift)
+    template<class FrameType, class BoxB, class BoxE, typename T_Acc>
+    DINLINE void operator()(const T_Acc& acc, FrameType& frame, int localIdx, BoxB& bBox, BoxE& eBox, int& mustShift)
     {
 
         typedef TVec Block;
@@ -394,7 +401,7 @@ struct PushParticlePerFrame
         if (direction >= 2)
         {
             /* if we did not use atomic we would get a WAW error */
-            nvidia::atomicAllExch(&mustShift, 1);
+            nvidia::atomicAllExch(acc, &mustShift, 1);
         }
     }
 };

@@ -39,8 +39,8 @@ struct DirSplittingKernel
     PMACC_ALIGN(m_totalLength,int);
     DirSplittingKernel(int totalLength) : m_totalLength(totalLength) {}
 
-    template<typename CursorE, typename CursorB >
-    DINLINE void propagate(CursorE cursorE, CursorB cursorB) const
+    template<typename CursorE, typename CursorB, typename T_Acc>
+    DINLINE void propagate(const T_Acc& acc, CursorE cursorE, CursorB cursorB) const
     {
         float_X a_plus = (*cursorB(-1, 0, 0)).z() + (*cursorE(-1, 0, 0)).y();
         float_X a_minus = (*cursorB(1, 0, 0)).z() - (*cursorE(1, 0, 0)).y();
@@ -57,8 +57,8 @@ struct DirSplittingKernel
         __syncthreads();
     }
 
-    template<typename CursorE, typename CursorB >
-    DINLINE void operator()(CursorE globalE, CursorB globalB) const
+    template<typename CursorE, typename CursorB, typename T_Acc>
+    DINLINE void operator()(const T_Acc& acc, CursorE globalE, CursorB globalB) const
     {
         //\todo: optimize cache size
         typedef typename PMacc::math::CT::add<
@@ -67,8 +67,8 @@ struct DirSplittingKernel
 
         typedef container::CT::SharedBuffer<float3_X, CacheSize, 0 > CacheE;
         typedef container::CT::SharedBuffer<float3_X, CacheSize, 1 > CacheB;
-        CacheE cacheE;
-        CacheB cacheB;
+        CacheE cacheE(acc);
+        CacheB cacheB(acc);
 
         using namespace lambda;
         DECLARE_PLACEHOLDERS();
@@ -77,11 +77,11 @@ struct DirSplittingKernel
         float3_X fieldB_old;
         int threadPos_x = threadIdx.x;
 
-        algorithm::cudaBlock::Foreach<BlockDim> foreach;
+        algorithm::cudaBlock::Foreach<BlockDim> foreach(acc);
         for (int x_offset = 0; x_offset < this->m_totalLength; x_offset += BlockDim::x::value)
         {
-            foreach(CacheE::Zone(), cacheE.origin(), globalE(-1 + x_offset, 0, 0), _1 = _2);
-            foreach(CacheB::Zone(), cacheB.origin(), globalB(-1 + x_offset, 0, 0), _1 = _2);
+            foreach(acc, typename CacheE::Zone(), cacheE.origin(), globalE(-1 + x_offset, 0, 0), _1 = _2);
+            foreach(acc, typename CacheB::Zone(), cacheB.origin(), globalB(-1 + x_offset, 0, 0), _1 = _2);
             __syncthreads();
 
             BOOST_AUTO(cursorE, cacheE.origin()(1, 0, 0)(threadPos_x, threadIdx.y, threadIdx.z));
@@ -98,11 +98,11 @@ struct DirSplittingKernel
                 *cursorB(-1,0,0) = fieldB_old;
             }
 
-            propagate(cursorE, cursorB);
+            propagate(acc, cursorE, cursorB);
 
             typedef zone::CT::SphericZone<BlockDim> BlockZone;
-            foreach(BlockZone(), cacheE.origin()(1, 0, 0), globalE(x_offset, 0, 0), _2 = _1);
-            foreach(BlockZone(), cacheB.origin()(1, 0, 0), globalB(x_offset, 0, 0), _2 = _1);
+            foreach(acc, BlockZone(), cacheE.origin()(1, 0, 0), globalE(x_offset, 0, 0), _2 = _1);
+            foreach(acc, BlockZone(), cacheB.origin()(1, 0, 0), globalB(x_offset, 0, 0), _2 = _1);
 
             __syncthreads();
 

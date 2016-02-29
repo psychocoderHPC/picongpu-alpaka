@@ -22,7 +22,6 @@
 
 #include "pmacc_types.hpp"
 #include "simulation_defines.hpp"
-#include "basicOperations.hpp"
 
 #include "dimensions/DataSpace.hpp"
 #include "mappings/simulation/SubGrid.hpp"
@@ -36,6 +35,10 @@ namespace cellwiseOperation
 {
     using namespace PMacc;
 
+
+    template< typename T_OpFunctor >
+    struct kernelCellwiseOperation
+    {
     /** Kernel that calls T_OpFunctor and T_ValFunctor on each cell of a field
      *
      *  Pseudo code: opFunctor( cell, valFunctor( globalCellIdx, currentStep ) );
@@ -46,13 +49,13 @@ namespace cellwiseOperation
      * \tparam Mapping auto attached argument from __picKernelArea call
      */
     template<
-        class T_OpFunctor,
         class T_ValFunctor,
         class FieldBox,
-        class Mapping>
-    __global__ void
-    kernelCellwiseOperation( FieldBox field, T_OpFunctor opFunctor, T_ValFunctor valFunctor, const DataSpace<simDim> totalCellOffset,
-        const uint32_t currentStep, Mapping mapper )
+        class Mapping,
+        typename T_Acc>
+    DINLINE void
+    operator()( const T_Acc& acc, FieldBox field, T_OpFunctor opFunctor, T_ValFunctor valFunctor, const DataSpace<simDim> totalCellOffset,
+        const uint32_t currentStep, Mapping mapper ) const
     {
         const DataSpace<simDim> block( mapper.getSuperCellIndex( DataSpace<simDim>( blockIdx ) ) );
         const DataSpace<simDim> blockCell = block * MappingDesc::SuperCellSize::toRT();
@@ -64,7 +67,7 @@ namespace cellwiseOperation
                                currentStep )
                  );
     }
-
+    };
     /** Call a functor on each cell of a field
      *
      *  \tparam T_Area Where to compute on (CORE, BORDER, GUARD)
@@ -111,7 +114,7 @@ namespace cellwiseOperation
                 totalCellOffset += m_cellDescription.getSuperCellSize() * m_cellDescription.getBorderSuperCells();
 
             /* start kernel */
-            __picKernelArea((kernelCellwiseOperation<T_OpFunctor>), m_cellDescription, T_Area)
+            __picKernelArea(kernelCellwiseOperation<T_OpFunctor>)( m_cellDescription, T_Area)
                     (SuperCellSize::toRT().toDim3())
                     (field->getDeviceDataBox(), opFunctor, valFunctor, totalCellOffset, currentStep);
         }

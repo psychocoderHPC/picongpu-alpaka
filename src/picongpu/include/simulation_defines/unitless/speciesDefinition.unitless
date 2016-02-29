@@ -28,7 +28,7 @@
 #include "traits/attribute/GetMass.hpp"
 #include "fields/currentDeposition/Solver.hpp"
 #include "particles/Particles.tpp"
-#include "particles/ionization/byField/ionizers.hpp"
+//#include "particles/ionization/byField/ionizers.hpp"
 
 namespace picongpu
 {

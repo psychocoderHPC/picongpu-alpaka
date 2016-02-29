@@ -40,7 +40,6 @@
 
 #include "fields/FieldE.hpp"
 #include "memory/boxes/CachedBox.hpp"
-#include "basicOperations.hpp"
 #include "dimensions/SuperCellDescription.hpp"
 #include "math/Vector.hpp"
 
@@ -48,16 +47,18 @@ namespace picongpu
 {
 using namespace PMacc;
 
+struct kernelIntensity
+{
 /* count particles in an area
  * is not optimized, it checks any particle position if it is really a particle
  */
-template<class FieldBox, class BoxMax, class BoxIntegral>
-__global__ void kernelIntensity(FieldBox field, DataSpace<simDim> cellsCount, BoxMax boxMax, BoxIntegral integralBox)
+template<class FieldBox, class BoxMax, class BoxIntegral, typename T_Acc>
+DINLINE void operator()(const T_Acc& acc, FieldBox field, DataSpace<simDim> cellsCount, BoxMax boxMax, BoxIntegral integralBox) const
 {
 
     typedef MappingDesc::SuperCellSize SuperCellSize;
-    __shared__ float_X s_integrated[SuperCellSize::y::value];
-    __shared__ float_X s_max[SuperCellSize::y::value];
+    sharedMem(s_integrated, cupla::Array<float_X,SuperCellSize::y::value>);
+    sharedMem(s_max,cupla::Array<float_X,SuperCellSize::y::value>);
 
 
     /*descripe size of a worker block for cached memory*/
@@ -65,7 +66,7 @@ __global__ void kernelIntensity(FieldBox field, DataSpace<simDim> cellsCount, Bo
         PMacc::math::CT::Int<SuperCellSize::x::value,SuperCellSize::y::value>
         > SuperCell2D;
 
-    PMACC_AUTO(s_field, CachedBox::create < 0, float_32> (SuperCell2D()));
+    PMACC_AUTO(s_field, CachedBox::create < 0, float_32> (acc, SuperCell2D()));
 
     int y = blockIdx.y * SuperCellSize::y::value + threadIdx.y;
     int yGlobal = y + SuperCellSize::y::value;
@@ -112,6 +113,7 @@ __global__ void kernelIntensity(FieldBox field, DataSpace<simDim> cellsCount, Bo
 
 
 }
+};
 
 class IntensityPlugin : public ILightweightPlugin
 {
