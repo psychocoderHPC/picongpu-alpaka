@@ -40,20 +40,23 @@ namespace PMacc
 /* count particles in an area
  * is not optimized, it checks any partcile position if its realy a particle
  */
-template<class PBox, class Filter, class Mapping>
-__global__ void kernelCountParticles(PBox pb,
+struct kernelCountParticles
+{
+template<class PBox, class Filter, class Mapping, typename T_Acc>
+DINLINE void operator()(const T_Acc& acc,
+                                     PBox pb,
                                      uint64_cu* gCounter,
                                      Filter filter,
-                                     Mapping mapper)
+                                     Mapping mapper) const
 {
 
     typedef typename PBox::FrameType FRAME;
     typedef typename PBox::FramePtr FramePtr;
     const uint32_t Dim = Mapping::Dim;
 
-    __shared__ typename PMacc::traits::GetEmptyDefaultConstructibleType<FramePtr>::type frame;
-    __shared__ int counter;
-    __shared__ lcellId_t particlesInSuperCell;
+    sharedMem(frame, typename PMacc::traits::GetEmptyDefaultConstructibleType<FramePtr>::type);
+    sharedMem(counter, int);
+    sharedMem(particlesInSuperCell, lcellId_t);
 
 
     typedef typename Mapping::SuperCellSize SuperCellSize;
@@ -77,7 +80,7 @@ __global__ void kernelCountParticles(PBox pb,
         if (linearThreadIdx < particlesInSuperCell)
         {
             if (filter(*frame, linearThreadIdx))
-                nvidia::atomicAllInc(&counter);
+                nvidia::atomicAllInc(acc,&counter);
         }
         __syncthreads();
         if (linearThreadIdx == 0)
@@ -94,6 +97,7 @@ __global__ void kernelCountParticles(PBox pb,
         atomicAdd(gCounter, (uint64_cu) counter);
     }
 }
+};
 
 struct CountParticles
 {

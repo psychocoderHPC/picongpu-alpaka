@@ -51,8 +51,10 @@ getPreviousFrameAndRemoveLastFrame( const typename T_ParticleBox::FramePtr& fram
 /*! This kernel move particles to the next supercell
  * This kernel can only run with a double checker board
  */
-template<class T_ParBox, class Mapping>
-__global__ void kernelShiftParticles( T_ParBox pb, Mapping mapper )
+struct kernelShiftParticles
+{
+template<class T_ParBox, class Mapping, typename T_Acc>
+DINLINE void operator()( const T_Acc& acc, T_ParBox pb, Mapping mapper ) const
 {
     typedef T_ParBox ParBox;
     typedef typename ParBox::FrameType FrameType;
@@ -68,14 +70,14 @@ __global__ void kernelShiftParticles( T_ParBox pb, Mapping mapper )
      * index range [0,numExchanges-1] are being referred to as `low frames`
      * index range [numExchanges,2*numExchanges-1] are being referred to as `high frames`
      */
-    __shared__ FramePtrShared destFrames[numExchanges * 2];
-    __shared__ int destFramesCounter[numExchanges]; //count particles per frame
+    sharedMem(destFrames, cupla::Array<FramePtrShared,numExchanges * 2>);
+    sharedMem(destFramesCounter, cupla::Array<int,numExchanges>); //count particles per frame
 
     /* lastFrameSize is only valid for threads with `linearThreadIdx` < numExchanges */
     uint32_t lastFrameSize = 0;
 
-    __shared__ FramePtrShared frame;
-    __shared__ bool mustShift;
+    sharedMem(frame, FramePtrShared);
+    sharedMem(mustShift, bool);
 
     DataSpace<dim> superCellIdx = mapper.getSuperCellIndex( DataSpace<dim> (blockIdx) );
     const uint32_t linearThreadIdx = threadIdx.x;
@@ -155,7 +157,7 @@ __global__ void kernelShiftParticles( T_ParBox pb, Mapping mapper )
                 {
                     FramePtrShared tmpFrame(pb.getEmptyFrame( ));
                     destFrames[linearThreadIdx] = tmpFrame;
-                    pb.setAsLastFrame( tmpFrame, relative );
+                    pb.setAsLastFrame( acc, tmpFrame, relative );
                 }
                 /* check if a `high frame` is needed */
                 if ( destFramesCounter[linearThreadIdx] > frameSize )
@@ -163,7 +165,7 @@ __global__ void kernelShiftParticles( T_ParBox pb, Mapping mapper )
                         lastFrameSize = destFramesCounter[linearThreadIdx] - frameSize;
                         FramePtrShared tmpFrame(pb.getEmptyFrame( ));
                         destFrames[linearThreadIdx + numExchanges] = tmpFrame;
-                        pb.setAsLastFrame( tmpFrame, relative );
+                        pb.setAsLastFrame( acc, tmpFrame, relative );
                 }
             }
         }
@@ -222,9 +224,12 @@ __global__ void kernelShiftParticles( T_ParBox pb, Mapping mapper )
         pb.getSuperCell( relative ).setSizeLastFrame( lastFrameSize );
     }
 }
+};
 
-template<class ParBox, class Mapping>
-__global__ void kernelFillGapsLastFrame( ParBox pb, Mapping mapper )
+struct kernelFillGapsLastFrame
+{
+template<class ParBox, class Mapping, typename T_Acc>
+DINLINE void operator()( const T_Acc& acc, ParBox pb, Mapping mapper ) const
 {
     using namespace particles::operations;
 
@@ -238,13 +243,13 @@ __global__ void kernelFillGapsLastFrame( ParBox pb, Mapping mapper )
 
     DataSpace<Dim> superCellIdx = mapper.getSuperCellIndex( DataSpace<Dim > (blockIdx) );
 
-    __shared__ typename PMacc::traits::GetEmptyDefaultConstructibleType<FramePtr>::type lastFrame;
+    sharedMem(lastFrame, typename PMacc::traits::GetEmptyDefaultConstructibleType<FramePtr>::type);
 
-    __shared__ int gapIndices_sh[TileSize];
-    __shared__ int counterGaps;
-    __shared__ int counterParticles;
+    sharedMem(gapIndices_sh, cupla::Array<int,TileSize>);
+    sharedMem(counterGaps, int);
+    sharedMem(counterParticles, int);
 
-    __shared__ int srcGap;
+    sharedMem(srcGap, int);
 
 
     if ( threadIdx.x == 0 )
@@ -263,20 +268,20 @@ __global__ void kernelFillGapsLastFrame( ParBox pb, Mapping mapper )
         const bool isParticle = lastFrame[threadIdx.x][multiMask_];
         if ( isParticle == true ) //\todo: bits zählen
         {
-            nvidia::atomicAllInc( &counterParticles );
+            nvidia::atomicAllInc( acc, &counterParticles );
         }
         __syncthreads( );
 
         if ( threadIdx.x < counterParticles && isParticle == false )
         {
-            const int localGapIdx = nvidia::atomicAllInc( &counterGaps );
+            const int localGapIdx = nvidia::atomicAllInc( acc, &counterGaps );
             gapIndices_sh[localGapIdx] = threadIdx.x;
         }
         __syncthreads( );
         if ( threadIdx.x >= counterParticles && isParticle )
         {
             //any particle search a gap
-            const int srcGapIdx = nvidia::atomicAllInc( &srcGap );
+            const int srcGapIdx = nvidia::atomicAllInc( acc, &srcGap );
             const int gapIdx = gapIndices_sh[srcGapIdx];
             PMACC_AUTO( parDestFull, lastFrame[gapIdx] );
             /*enable particle*/
@@ -293,9 +298,12 @@ __global__ void kernelFillGapsLastFrame( ParBox pb, Mapping mapper )
         pb.getSuperCell( superCellIdx ).setSizeLastFrame( counterParticles );
 
 }
+};
 
-template<class ParBox, class Mapping>
-__global__ void kernelFillGaps( ParBox pb, Mapping mapper )
+struct kernelFillGaps
+{
+template<class ParBox, class Mapping, typename T_Acc>
+DINLINE void operator()( const T_Acc& acc, ParBox pb, Mapping mapper ) const
 {
     using namespace particles::operations;
 
@@ -310,12 +318,12 @@ __global__ void kernelFillGaps( ParBox pb, Mapping mapper )
     DataSpace<Dim> superCellIdx( mapper.getSuperCellIndex( DataSpace<Dim > (blockIdx) ) );
 
     //data copied from right (last) to left (first)
-    __shared__ typename PMacc::traits::GetEmptyDefaultConstructibleType<FramePtr>::type firstFrame;
-    __shared__ typename PMacc::traits::GetEmptyDefaultConstructibleType<FramePtr>::type lastFrame;
+    sharedMem(firstFrame, typename PMacc::traits::GetEmptyDefaultConstructibleType<FramePtr>::type);
+    sharedMem(lastFrame, typename PMacc::traits::GetEmptyDefaultConstructibleType<FramePtr>::type);
 
-    __shared__ int particleIndices_sh[TileSize];
-    __shared__ int counterGaps;
-    __shared__ int counterParticles;
+    sharedMem(particleIndices_sh, cupla::Array<int,TileSize>);
+    sharedMem(counterGaps, int);
+    sharedMem(counterParticles, int);
 
 
     if ( threadIdx.x == 0 )
@@ -341,7 +349,7 @@ __global__ void kernelFillGaps( ParBox pb, Mapping mapper )
         // find gaps
         if ( firstFrame[threadIdx.x][multiMask_] == 0 )
         {
-            localGapIdx = nvidia::atomicAllInc( &counterGaps );
+            localGapIdx = nvidia::atomicAllInc( acc, &counterGaps );
         }
         __syncthreads( );
 
@@ -358,7 +366,7 @@ __global__ void kernelFillGaps( ParBox pb, Mapping mapper )
         // search particles for gaps
         if ( lastFrame[threadIdx.x][multiMask_] == 1 )
         {
-            int localParticleIdx = nvidia::atomicAllInc( &counterParticles );
+            int localParticleIdx = nvidia::atomicAllInc( acc, &counterParticles );
             particleIndices_sh[localParticleIdx] = threadIdx.x;
         }
         __syncthreads( );
@@ -400,10 +408,14 @@ __global__ void kernelFillGaps( ParBox pb, Mapping mapper )
         __syncthreads( );
     }
 }
+};
 
-template< class T_ParticleBox, class Mapping>
-__global__ void kernelDeleteParticles( T_ParticleBox pb,
-                                       Mapping mapper )
+struct kernelDeleteParticles
+{
+template< class T_ParticleBox, class Mapping, typename T_Acc>
+DINLINE void operator()( const T_Acc& acc,
+                                       T_ParticleBox pb,
+                                       Mapping mapper ) const
 {
     using namespace particles::operations;
 
@@ -419,7 +431,7 @@ __global__ void kernelDeleteParticles( T_ParticleBox pb,
     DataSpace<Dim> superCellIdx = mapper.getSuperCellIndex( DataSpace<Dim > (blockIdx) );
     const int linearThreadIdx = threadIdx.x;
 
-    __shared__ typename PMacc::traits::GetEmptyDefaultConstructibleType<FramePtr>::type frame;
+    sharedMem(frame, typename PMacc::traits::GetEmptyDefaultConstructibleType<FramePtr>::type);
 
     if ( linearThreadIdx == 0 )
     {
@@ -448,11 +460,14 @@ __global__ void kernelDeleteParticles( T_ParticleBox pb,
         pb.getSuperCell( superCellIdx ).setSizeLastFrame( 0 );
 
 }
+};
 
-template< class ParBox, class BORDER, class Mapping>
-__global__ void kernelBashParticles( ParBox pb,
+struct kernelBashParticles
+{
+template< class ParBox, class BORDER, class Mapping, typename T_Acc>
+DINLINE void operator()( const T_Acc& acc, ParBox pb,
                                      ExchangePushDataBox<vint_t, BORDER, Mapping::Dim - 1 > border,
-                                     Mapping mapper )
+                                     Mapping mapper ) const
 {
     using namespace particles::operations;
 
@@ -465,10 +480,10 @@ __global__ void kernelBashParticles( ParBox pb,
 
     DataSpace<Dim> superCellIdx = mapper.getSuperCellIndex( DataSpace<Dim > (blockIdx) );
 
-    __shared__ int numBashedParticles;
-    __shared__ typename PMacc::traits::GetEmptyDefaultConstructibleType<FramePtr>::type frame;
-    __shared__ bool hasMemory;
-    __shared__ TileDataBox<BORDER> tmpBorder;
+    sharedMem(numBashedParticles, int);
+    sharedMem(frame, typename PMacc::traits::GetEmptyDefaultConstructibleType<FramePtr>::type);
+    sharedMem(hasMemory, bool);
+    sharedMem(tmpBorder, TileDataBox<BORDER>);
 
     if ( threadIdx.x == 0 )
     {
@@ -486,7 +501,7 @@ __global__ void kernelBashParticles( ParBox pb,
 
         if ( frame[threadIdx.x][multiMask_] == 1 )
         {
-            bashIdx = nvidia::atomicAllInc( &numBashedParticles );
+            bashIdx = nvidia::atomicAllInc( acc, &numBashedParticles );
         }
         __syncthreads( );
 
@@ -496,7 +511,7 @@ __global__ void kernelBashParticles( ParBox pb,
             if ( threadIdx.x == 0 )
             {
                 // DataSpaceOperations<DIM2>::reduce computes target position for domainTile and exchangeType
-                tmpBorder = border.pushN( numBashedParticles,
+                tmpBorder = border.pushN( acc,  numBashedParticles,
                                           DataSpaceOperations<Dim>::reduce(
                                                                             superCellIdx,
                                                                             mapper.getExchangeType( ) ) );
@@ -534,11 +549,14 @@ __global__ void kernelBashParticles( ParBox pb,
         pb.getSuperCell( superCellIdx ).setSizeLastFrame( 0 );
 
 }
+};
 
-template<class ParBox, class BORDER, class Mapping>
-__global__ void kernelInsertParticles( ParBox pb,
+struct kernelInsertParticles
+{
+template<class ParBox, class BORDER, class Mapping, typename T_Acc>
+DINLINE void operator()( const T_Acc& acc, ParBox pb,
                                        ExchangePopDataBox<vint_t, BORDER, Mapping::Dim - 1 > border,
-                                       Mapping mapper )
+                                       Mapping mapper ) const
 {
 
     using namespace particles::operations;
@@ -550,9 +568,9 @@ __global__ void kernelInsertParticles( ParBox pb,
     };
 
     typedef typename ParBox::FramePtr FramePtr;
-    __shared__ typename PMacc::traits::GetEmptyDefaultConstructibleType<FramePtr>::type frame;
-    __shared__ int elementCount;
-    __shared__ TileDataBox<BORDER> tmpBorder;
+    sharedMem(frame, typename PMacc::traits::GetEmptyDefaultConstructibleType<FramePtr>::type);
+    sharedMem(elementCount, int);
+    sharedMem(tmpBorder, TileDataBox<BORDER>);
 
 
     DataSpace < Mapping::Dim - 1 > superCell;
@@ -589,13 +607,13 @@ __global__ void kernelInsertParticles( ParBox pb,
                                                                                 mapper.getGridSuperCells( ),
                                                                                 DataSpace<Dim>::create( mapper.getGuardingSuperCells( ) ) );
 
-        pb.setAsLastFrame( frame, dstSuperCell );
+        pb.setAsLastFrame( acc, frame, dstSuperCell );
     }
 
 
 }
+};
 
 
 
 } //namespace PMacc
-

@@ -42,11 +42,11 @@ namespace detail
 /*                        typename C0, ..., typename CN     */ \
 template<typename T_Acc, typename Mapper, BOOST_PP_ENUM_PARAMS(N, typename C), typename Functor> \
 /*                                          C0 c0, ..., CN cN   */ \
-DINLINE void kernelForeach(const T_Acc& acc, Mapper mapper, BOOST_PP_ENUM_BINARY_PARAMS(N, C, c), Functor functor) const \
+DINLINE void operator()(const T_Acc& acc, Mapper mapper, BOOST_PP_ENUM_BINARY_PARAMS(N, C, c), Functor functor) const \
 { \
     math::Int<Mapper::dim> cellIndex(mapper(acc, blockIdx, threadIdx)); \
 /*          forward(c0[cellIndex]), ..., forward(cN[cellIndex])     */ \
-    functor(BOOST_PP_ENUM(N, SHIFTACCESS_CURSOR, _)); \
+    functor(acc, BOOST_PP_ENUM(N, SHIFTACCESS_CURSOR, _)); \
 }
 
 struct kernelForeach

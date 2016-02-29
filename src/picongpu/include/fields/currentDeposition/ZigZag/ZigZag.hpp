@@ -23,7 +23,6 @@
 #include "simulation_defines.hpp"
 #include "pmacc_types.hpp"
 #include "dimensions/DataSpace.hpp"
-#include "basicOperations.hpp"
 #include <cuSTL/cursor/tools/twistVectorFieldAxes.hpp>
 #include "algorithms/FieldToParticleInterpolation.hpp"
 #include "algorithms/ShiftCoordinateSystem.hpp"
@@ -125,7 +124,7 @@ struct AssignChargeToCell
         /* shift memory cursor to cell (grid point)*/
         PMACC_AUTO(cursorToValue, cursor(GridPointVec::toRT()));
         /* add current to component of the cell*/
-        atomicAddWrapper(&((*cursorToValue)[currentComponent]), j);
+        atomicAdd(&((*cursorToValue)[currentComponent]), j);
     }
 };
 

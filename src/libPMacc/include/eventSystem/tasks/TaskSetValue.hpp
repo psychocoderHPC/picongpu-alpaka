@@ -183,7 +183,9 @@ public:
             /* line wise thread blocks*/
             gridSize.x = ceil(double(gridSize.x) / 256.);
 
-        CUPLA_KERNEL(kernelSetValue)(gridSize, 256, 0, this->getCudaStream())
+        if(gridSize.x * gridSize.y * gridSize.z != 0 )
+        {
+            CUPLA_KERNEL(kernelSetValue)(gridSize, 256, 0, this->getCudaStream())
                 (this->destination->getDataBox(), this->value, area_size);
         }
         this->activate();
@@ -227,18 +229,19 @@ public:
             /* line wise thread blocks*/
             gridSize.x = ceil(double(gridSize.x) / 256.);
 
+        if(gridSize.x * gridSize.y * gridSize.z != 0 )
+        {
             ValueType* devicePtr = this->destination->getPointer();
 
-        CUDA_CHECK(cudaMallocHost((void**)&valuePointer_host, sizeof (ValueType)));
+            CUDA_CHECK(cudaMallocHost((void**)&valuePointer_host, sizeof (ValueType)));
             *valuePointer_host = this->value; //copy value to new place
 
             CUDA_CHECK(cudaMemcpyAsync(
                                        devicePtr, valuePointer_host, sizeof (ValueType),
                                        cudaMemcpyHostToDevice, this->getCudaStream()));
-        CUPLA_KERNEL(kernelSetValue)(gridSize, 256, 0, this->getCudaStream() )
+            CUPLA_KERNEL(kernelSetValue)(gridSize, 256, 0, this->getCudaStream() )
                 (this->destination->getDataBox(), devicePtr, area_size);
         }
-
         this->activate();
     }
 

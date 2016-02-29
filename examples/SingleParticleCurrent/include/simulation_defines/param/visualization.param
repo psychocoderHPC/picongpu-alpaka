@@ -22,7 +22,7 @@
 #pragma once
 
 #include <cmath>
-#include "basicOperations.hpp"
+
 
 namespace picongpu
 {

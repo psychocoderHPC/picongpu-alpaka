@@ -53,7 +53,11 @@ private:
     Type* dataPointer;
     //HDINLINE void init();
 public:
-    DINLINE CartBuffer();
+    template< typename T_Acc >
+    DINLINE CartBuffer(const T_Acc& acc)
+    {
+        this->dataPointer = Allocator::allocate(acc).getMarker();
+    }
     DINLINE CartBuffer(const CT::CartBuffer<Type, Size, Allocator, Copier, Assigner>& other);
 
     DINLINE CT::CartBuffer<Type, Size, Allocator, Copier, Assigner>&

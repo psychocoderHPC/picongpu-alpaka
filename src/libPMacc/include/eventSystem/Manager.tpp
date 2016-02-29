@@ -74,8 +74,11 @@ inline bool Manager::execute( id_t taskToWait )
         assert( taskPtr != NULL );
         ++iter;
 #ifdef DEBUG_EVENTS
-        if ( counter == 500000 )
+        if ( counter == 5000000 )
+        {
             std::cout << taskPtr->toString( ) << " " << passiveTasks.size( ) << std::endl;
+            counter = 0;
+        }
 #endif
         if ( taskPtr->execute( ) )
         {

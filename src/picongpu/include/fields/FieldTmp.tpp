@@ -179,7 +179,7 @@ namespace picongpu
 
         do
         {
-            __cudaKernel( ( kernelComputeSupercells<BlockArea, AREA> ) )
+            __cudaKernel( kernelComputeSupercells<BlockArea, AREA> )
                 ( mapper.getGridDim( ), mapper.getSuperCellSize( ) )
                 ( tmpBox,
                   pBox, solver, mapper );

@@ -25,7 +25,6 @@
 #include "dimensions/DataSpace.hpp"
 #include "math/Vector.hpp"
 #include "cuSTL/cursor/Cursor.hpp"
-#include "basicOperations.hpp"
 #include <cuSTL/cursor/tools/twistVectorFieldAxes.hpp>
 #include <cuSTL/cursor/compile-time/SafeCursor.hpp>
 
@@ -66,8 +65,9 @@ struct EsirkepovNative
      *
      * \todo: please fix me that we can use CenteredCell
      */
-    template<typename DataBoxJ, typename PosType, typename VelType, typename ChargeType >
-    DINLINE void operator()(DataBoxJ dataBoxJ,
+    template<typename DataBoxJ, typename PosType, typename VelType, typename ChargeType, typename T_Acc >
+    DINLINE void operator()(const T_Acc& acc,
+                            DataBoxJ dataBoxJ,
                             const PosType pos,
                             const VelType velocity,
                             const ChargeType charge, const float_X deltaTime)
@@ -88,9 +88,9 @@ struct EsirkepovNative
          */
 
         using namespace cursor::tools;
-        cptCurrent1D(twistVectorFieldAxes<PMacc::math::CT::Int < 1, 2, 0 > >(cursorJ), rotateOrigin < 1, 2, 0 > (line), cellSize.x());
-        cptCurrent1D(twistVectorFieldAxes<PMacc::math::CT::Int < 2, 0, 1 > >(cursorJ), rotateOrigin < 2, 0, 1 > (line), cellSize.y());
-        cptCurrent1D(cursorJ, line, cellSize.z());
+        cptCurrent1D(acc, twistVectorFieldAxes<PMacc::math::CT::Int < 1, 2, 0 > >(cursorJ), rotateOrigin < 1, 2, 0 > (line), cellSize.x());
+        cptCurrent1D(acc, twistVectorFieldAxes<PMacc::math::CT::Int < 2, 0, 1 > >(cursorJ), rotateOrigin < 2, 0, 1 > (line), cellSize.y());
+        cptCurrent1D(acc, cursorJ, line, cellSize.z());
     }
 
     /**
@@ -99,8 +99,8 @@ struct EsirkepovNative
      * \param line trajectory of the particle from to last to the current time step
      * \param cellEdgeLength length of edge of the cell in z-direction
      */
-    template<typename CursorJ >
-    DINLINE void cptCurrent1D(CursorJ cursorJ,
+    template<typename CursorJ, typename T_Acc >
+    DINLINE void cptCurrent1D(const T_Acc& acc, CursorJ cursorJ,
                               const Line<float3_X>& line,
                               const float_X cellEdgeLength)
     {
@@ -125,7 +125,7 @@ struct EsirkepovNative
                     /* We multiply with `cellEdgeLength` due to the fact that the attribute for the
                      * in-cell particle `position` (and it's change in DELTA_T) is normalize to [0,1) */
                     accumulated_J += -this->charge * (float_X(1.0) / float_X(CELL_VOLUME * DELTA_T)) * W * cellEdgeLength;
-                    atomicAddWrapper(&((*cursorJ(i, j, k)).z()), accumulated_J);
+                    atomicAdd(&((*cursorJ(i, j, k)).z()), accumulated_J);
                 }
             }
         }

@@ -86,10 +86,11 @@ public:
 
         CUDA_CHECK(cudaDeviceSynchronize());
         CUDA_CHECK(cudaGetLastError());
-
         GridController<simDim> &gc = Environment<simDim>::get().GridController();
         /* can be spared for better scalings, but guarantees the user
          * that the restart was successful */
+
+        Environment<>::get().Manager().waitForAllTasks();
         MPI_CHECK(MPI_Barrier(gc.getCommunicator().getMPIComm()));
 
         log<picLog::SIMULATION_STATE > ("Loading from persistent data finished");

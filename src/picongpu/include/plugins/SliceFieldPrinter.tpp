@@ -48,7 +48,8 @@ class ConversionFunctor
 {
 public:
   /* convert field data to higher precision and convert to SI units on GPUs */
-  DINLINE void operator()(float3_64& target, const typename Field::ValueType fieldData) const
+  template< typename T_Acc>
+  DINLINE void operator()(const T_Acc& acc, float3_64& target, const typename Field::ValueType fieldData) const
   {
     target = precisionCast<float_64>(fieldData) *  float_64((Field::getUnit())[0]) ;
   }

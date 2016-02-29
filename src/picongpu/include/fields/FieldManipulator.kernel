@@ -33,8 +33,8 @@ namespace picongpu
 
 using namespace PMacc;
 
-template<int pos, class BoxedMemory, class Mapping>
-DINLINE void absorb(BoxedMemory field, uint32_t thickness, float_X absorber_strength, Mapping mapper, const DataSpace<simDim> &direction)
+template<int pos, class BoxedMemory, class Mapping, typename T_Acc>
+DINLINE void absorb(const T_Acc& acc, BoxedMemory field, uint32_t thickness, float_X absorber_strength, Mapping mapper, const DataSpace<simDim> &direction)
 {
     typedef typename MappingDesc::SuperCellSize SuperCellSize;
     const DataSpace<simDim> superCellIdx(mapper.getSuperCellIndex(DataSpace<simDim > (blockIdx)));
@@ -47,7 +47,7 @@ DINLINE void absorb(BoxedMemory field, uint32_t thickness, float_X absorber_stre
     //cells in simulation
     const DataSpace<simDim> gCells = mapper.getGridSuperCells() * SuperCellSize::toRT();
 
-    __shared__ int finish;
+    sharedMem(finish, int);
 
 
     float_X factor = float_X(0.0);
@@ -75,7 +75,7 @@ DINLINE void absorb(BoxedMemory field, uint32_t thickness, float_X absorber_stre
         if (factor <= float_X(0.0))
         {
             factor = float_X(0.0);
-            nvidia::atomicAllExch(&finish,1);
+            nvidia::atomicAllExch(acc, &finish,1);
         }
         else
         {
@@ -93,22 +93,25 @@ DINLINE void absorb(BoxedMemory field, uint32_t thickness, float_X absorber_stre
     while (finish == 0);
 }
 
-template<class BoxedMemory, class Mapping>
-__global__ void kernelAbsorbBorder(BoxedMemory field, uint32_t thickness, float_X absorber_strength, Mapping mapper)
+struct kernelAbsorbBorder
+{
+template<class BoxedMemory, class Mapping, typename T_Acc>
+DINLINE void operator()(const T_Acc& acc, BoxedMemory field, uint32_t thickness, float_X absorber_strength, Mapping mapper) const
 {
 
     const DataSpace<simDim> direction = Mask::getRelativeDirections<simDim > (mapper.getExchangeType());
 
     //this is a workaround that we get a kernelwithout lmem
     if (direction.x() != 0)
-        absorb < 0 > (field, thickness, absorber_strength, mapper, direction);
+        absorb < 0 > (acc, field, thickness, absorber_strength, mapper, direction);
     else if (direction.y() != 0)
-        absorb < 1 > (field, thickness, absorber_strength, mapper, direction);
+        absorb < 1 > (acc, field, thickness, absorber_strength, mapper, direction);
 #if (SDIMDIM==DIM3)
     else if (direction.z() != 0)
-        absorb < 2 > (field, thickness, absorber_strength, mapper, direction);
+        absorb < 2 > (acc, field, thickness, absorber_strength, mapper, direction);
 #endif
 }
+};
 } //namespace
 #endif    /* FIELDMANIPULATOR_KERNEL */
 

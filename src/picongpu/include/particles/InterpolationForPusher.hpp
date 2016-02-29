@@ -67,7 +67,7 @@ struct InterpolationForPusher
 
 private:
     PMACC_ALIGN( m_mem, T_MemoryType );
-    const PMACC_ALIGN( m_fieldPos, T_FieldPosition );
+    PMACC_ALIGN( m_fieldPos, const T_FieldPosition );
 };
 
 

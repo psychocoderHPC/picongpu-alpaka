@@ -140,6 +140,9 @@ struct ConcatListOfFrames
 
 };
 
+
+struct copySpecies
+{
 /** copy particle of a species to a host frame
  *
  * @tparam T_DestFrame type of destination frame
@@ -155,8 +158,8 @@ struct ConcatListOfFrames
  * @param particleOffset can be negative for the first GPU: localDomain.offset - globalWindow.offset
  * @param mapper apper to map cuda idx to supercells
  */
-template<class T_DestFrame, class T_SrcBox, class T_Filter, class T_Space, class T_Mapping>
-__global__ void copySpecies(int* counter, T_DestFrame destFrame, T_SrcBox srcBox, T_Filter filter, T_Space particleOffset, T_Mapping mapper)
+template<class T_DestFrame, class T_SrcBox, class T_Filter, class T_Space, class T_Mapping, typename T_Acc>
+DINLINE void operator()(const T_Acc& acc, int* counter, T_DestFrame destFrame, T_SrcBox srcBox, T_Filter filter, T_Space particleOffset, T_Mapping mapper) const
 {
     using namespace PMacc::particles::operations;
 
@@ -167,9 +170,9 @@ __global__ void copySpecies(int* counter, T_DestFrame destFrame, T_SrcBox srcBox
     typedef T_Mapping Mapping;
     typedef typename Mapping::SuperCellSize Block;
 
-    __shared__ typename PMacc::traits::GetEmptyDefaultConstructibleType<SrcFramePtr>::type srcFramePtr;
-    __shared__ int localCounter;
-    __shared__ int globalOffset;
+    sharedMem(srcFramePtr, typename PMacc::traits::GetEmptyDefaultConstructibleType<SrcFramePtr>::type);
+    sharedMem(localCounter,int);
+    sharedMem(globalOffset,int);
 
     int storageOffset;
 
@@ -189,7 +192,7 @@ __global__ void copySpecies(int* counter, T_DestFrame destFrame, T_SrcBox srcBox
         storageOffset = -1;
         /*count particle in frame*/
         if (parSrc[multiMask_] == 1 && filter(*srcFramePtr, threadIdx.x))
-            storageOffset = nvidia::atomicAllInc(&localCounter);
+            storageOffset = nvidia::atomicAllInc(acc, &localCounter);
         __syncthreads();
         if (threadIdx.x == 0)
         {
@@ -216,6 +219,7 @@ __global__ void copySpecies(int* counter, T_DestFrame destFrame, T_SrcBox srcBox
         __syncthreads();
     }
 }
+};
 
 } //namespace picongpu
 

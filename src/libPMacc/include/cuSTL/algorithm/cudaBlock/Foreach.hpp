@@ -44,9 +44,9 @@ namespace cudaBlock
 
 #define FOREACH_OPERATOR(Z, N, _)                                                  \
     /*      <             , typename C0, ..., typename C(N-1)  ,              > */ \
-    template<typename Zone, BOOST_PP_ENUM_PARAMS(N, typename C), typename Functor> \
+    template<typename Zone, BOOST_PP_ENUM_PARAMS(N, typename C), typename Functor, typename T_Acc> \
     /*                     (      C0 c0, ..., C(N-1) c(N-1)           ,       ) */ \
-    DINLINE void operator()(Zone, BOOST_PP_ENUM_BINARY_PARAMS(N, C, c), const Functor& functor) \
+    DINLINE void operator()(const T_Acc& acc,Zone, BOOST_PP_ENUM_BINARY_PARAMS(N, C, c), const Functor& functor) \
     {                                                                              \
         BOOST_AUTO(functor_, lambda::make_Functor(functor));                       \
         const int dataVolume = math::CT::volume<typename Zone::Size>::type::value; \
@@ -57,10 +57,10 @@ namespace cudaBlock
                                                                                    \
         for(int i = this->linearThreadIdx; i < dataVolume; i += blockVolume)       \
         {                                                                          \
-            PosType pos = Zone::Offset().toRT() +                                  \
+            PosType pos = typename Zone::Offset().toRT() +                                  \
                           precisionCast<typename PosType::type>(                   \
-                            math::MapToPos<Zone::dim>()( Zone::Size(), i ) );      \
-            functor_(BOOST_PP_ENUM(N, SHIFTACCESS_CURSOR, _));                     \
+                            math::MapToPos<Zone::dim>()( typename Zone::Size(), i ) );      \
+            functor_(acc, BOOST_PP_ENUM(N, SHIFTACCESS_CURSOR, _));                     \
         }                                                                          \
     }
 
@@ -77,7 +77,8 @@ struct Foreach
 private:
     const int linearThreadIdx;
 public:
-    DINLINE Foreach()
+    template< typename T_Acc >
+    DINLINE Foreach(const T_Acc& acc)
      : linearThreadIdx(
         threadIdx.z * BlockDim::x::value * BlockDim::y::value +
         threadIdx.y * BlockDim::x::value +

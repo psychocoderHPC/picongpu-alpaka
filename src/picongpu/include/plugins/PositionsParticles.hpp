@@ -92,18 +92,22 @@ struct SglParticle
     }
 };
 
+
+struct kernelPositionsParticles
+{
 /** write the position of a single particle to a file
  * \warning this analyser MUST NOT be used with more than one (global!)
  * particle and is created for one-particle-test-purposes only
  */
-template<class ParBox, class FloatPos, class Mapping>
-__global__ void kernelPositionsParticles(ParBox pb,
+template<class ParBox, class FloatPos, class Mapping, typename T_Acc>
+DINLINE void operator()(const T_Acc& acc,
+                                         ParBox pb,
                                          SglParticle<FloatPos>* gParticle,
-                                         Mapping mapper)
+                                         Mapping mapper) const
 {
 
     typedef typename ParBox::FramePtr FramePtr;
-    __shared__ typename PMacc::traits::GetEmptyDefaultConstructibleType<FramePtr>::type frame;
+    sharedMem(frame, typename PMacc::traits::GetEmptyDefaultConstructibleType<FramePtr>::type);
 
 
     typedef typename Mapping::SuperCellSize SuperCellSize;
@@ -158,6 +162,7 @@ __global__ void kernelPositionsParticles(ParBox pb,
     }
 
 }
+};
 
 template<class ParticlesType>
 class PositionsParticles : public ILightweightPlugin
@@ -256,7 +261,7 @@ private:
         gParticle->getDeviceBuffer().setValue(positionParticleTmp);
         dim3 block(SuperCellSize::toRT().toDim3());
 
-        __picKernelArea(kernelPositionsParticles, *cellDescription, AREA)
+        __picKernelArea(kernelPositionsParticles)( *cellDescription, AREA)
             (block)
             (particles->getDeviceParticlesBox(),
              gParticle->getDeviceBuffer().getBasePointer());
