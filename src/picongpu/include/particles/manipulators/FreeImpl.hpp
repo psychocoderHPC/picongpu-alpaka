@@ -47,15 +47,15 @@ struct FreeImpl
     {
     }
 
-    template<typename T_Particle1, typename T_Particle2>
-    DINLINE void operator()(const DataSpace<simDim>&,
+    template<typename T_Particle1, typename T_Particle2, typename T_Acc>
+    DINLINE void operator()(const T_Acc& acc, const DataSpace<simDim>&,
                             T_Particle1& particleSpecies1, T_Particle2& particleSpecies2,
                             const bool isParticle1, const bool isParticle2)
     {
         if (isParticle1 && isParticle2)
         {
             Functor userFunctor;
-            userFunctor(particleSpecies1, particleSpecies2);
+            userFunctor(acc, particleSpecies1, particleSpecies2);
         }
     }
 

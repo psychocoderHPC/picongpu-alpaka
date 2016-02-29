@@ -449,7 +449,7 @@ public:
         this->cellDescription = cellDescription;
     }
 
-    __host__ void notify(uint32_t currentStep)
+    void notify(uint32_t currentStep)
     {
         notificationReceived(currentStep, false);
     }

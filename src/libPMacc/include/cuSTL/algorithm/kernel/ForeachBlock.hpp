@@ -63,7 +63,7 @@ DINLINE void operator()(const T_Acc& acc, Mapper mapper, BOOST_PP_ENUM_BINARY_PA
 {                                                                                                           \
     math::Int<Mapper::dim> cellIndex(mapper(acc, blockIdx));                                                     \
          /* c0[cellIndex], c1[cellIndex], ... */                                                            \
-    functor(BOOST_PP_ENUM(N, SHIFTACCESS_CURSOR, _));                                                       \
+    functor(acc, BOOST_PP_ENUM(N, SHIFTACCESS_CURSOR, _));                                                       \
 }
 
 struct kernelForeachBlock

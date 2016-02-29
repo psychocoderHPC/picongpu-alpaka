@@ -185,7 +185,7 @@ private:
 
         //cudaDeviceProp devProp;
 
-        cudaError rc;
+        //cudaError rc;
         //CUDA_CHECK(cudaGetDeviceProperties(&devProp, deviceNumber));
 
         /* if the gpu compute mode is set to default we use the given `deviceNumber` */
@@ -195,7 +195,8 @@ private:
         for (int deviceOffset = 0; deviceOffset < maxTries; ++deviceOffset)
         {
             const int tryDeviceId = (deviceOffset + deviceNumber) % num_gpus;
-            rc = cudaSetDevice(tryDeviceId);
+//            rc = cudaSetDevice(tryDeviceId);
+            cudaSetDevice(tryDeviceId);
             break;
 #if 0
             if(rc == cudaSuccess)

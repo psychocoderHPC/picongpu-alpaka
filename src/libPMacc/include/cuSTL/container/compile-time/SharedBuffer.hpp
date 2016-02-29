@@ -40,7 +40,25 @@ template<typename Type, typename Size, int uid = 0>
 struct SharedBuffer
  : public CT::CartBuffer<Type, Size,
                          allocator::CT::SharedMemAllocator<Type, Size, Size::dim, uid>, void, void>
-{};
+{
+    template< typename T_Acc >
+    DINLINE SharedBuffer(const T_Acc& acc) :
+        CT::CartBuffer<
+            Type,
+            Size,
+            allocator::CT::SharedMemAllocator<
+                Type,
+                Size,
+                Size::dim,
+                uid
+            >,
+            void,
+            void
+        >(acc)
+    {
+
+    }
+};
 
 } // CT
 } // container

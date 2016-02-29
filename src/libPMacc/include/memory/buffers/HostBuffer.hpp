@@ -22,7 +22,7 @@
 
 #pragma once
 
-//#include <cuSTL/container/HostBuffer.hpp>
+#include <cuSTL/container/HostBuffer.hpp>
 #include "memory/buffers/Buffer.hpp"
 #include "dimensions/DataSpace.hpp"
 
@@ -72,7 +72,6 @@ namespace PMacc
         {
         };
 
-/*
         HINLINE
         container::HostBuffer<TYPE, DIM>
         cartBuffer()
@@ -85,7 +84,7 @@ namespace PMacc
             container::HostBuffer<TYPE, DIM> result(this->getBasePointer(), this->getDataSpace(), false, pitch);
             return result;
         }
-*/
+
     protected:
 
         /** Constructor.

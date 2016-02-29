@@ -36,13 +36,13 @@ struct Set
     }
 
     template<typename Dst >
-            HDINLINE void operator()(Dst & dst) const
+    HDINLINE void operator()(Dst & dst) const
     {
         dst = value;
     }
 
 private:
-    const PMACC_ALIGN(value, Type_);
+    PMACC_ALIGN(value, const Type_);
 };
 }
 

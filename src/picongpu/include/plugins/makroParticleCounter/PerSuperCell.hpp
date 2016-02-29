@@ -44,8 +44,10 @@ namespace picongpu
 using namespace PMacc;
 using namespace splash;
 
-template<class ParBox, class CounterBox, class Mapping>
-__global__ void CountMakroParticle(ParBox parBox, CounterBox counterBox, Mapping mapper)
+struct CountMakroParticle
+{
+template<class ParBox, class CounterBox, class Mapping, typename T_Acc>
+DINLINE void operator()(const T_Acc& acc, ParBox parBox, CounterBox counterBox, Mapping mapper) const
 {
 
     typedef MappingDesc::SuperCellSize SuperCellSize;
@@ -59,8 +61,8 @@ __global__ void CountMakroParticle(ParBox parBox, CounterBox counterBox, Mapping
     const DataSpace<simDim > threadIndex(threadIdx);
     const int linearThreadIdx = DataSpaceOperations<simDim>::template map<SuperCellSize > (threadIndex);
 
-    __shared__ uint64_cu counterValue;
-    __shared__ typename PMacc::traits::GetEmptyDefaultConstructibleType<FramePtr>::type frame;
+    sharedMem(counterValue, uint64_cu);
+    sharedMem(frame, typename PMacc::traits::GetEmptyDefaultConstructibleType<FramePtr>::type);
 
     if (linearThreadIdx == 0)
     {
@@ -95,6 +97,7 @@ __global__ void CountMakroParticle(ParBox parBox, CounterBox counterBox, Mapping
     if (linearThreadIdx == 0)
         counterBox(counterCell) = counterValue;
 }
+};
 
 /** Count makro particle of a species and write down the result to a global HDF5 file.
  *

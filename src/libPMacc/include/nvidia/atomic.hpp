@@ -24,10 +24,10 @@
 
 
 #include "pmacc_types.hpp"
+#if (PMACC_CUDA_ENABLED == 1)
 #include "nvidia/warp.hpp"
+#endif
 #include <boost/type_traits.hpp>
-#include <math_functions.h>
-#include <device_functions.h>
 #include <climits>
 
 
@@ -41,8 +41,9 @@ namespace nvidia
         template<typename T_Type, bool T_isKepler>
         struct AtomicAllInc
         {
+            template< typename T_Acc >
             DINLINE T_Type
-            operator()(T_Type* ptr)
+            operator()(const T_Acc& acc, T_Type* ptr)
             {
                 return atomicAdd(ptr, 1);
             }
@@ -84,8 +85,9 @@ namespace nvidia
         template<typename T_Type>
         struct AtomicAllIncKepler<T_Type, true>
         {
+            template< typename T_Acc >
             DINLINE T_Type
-            operator()(T_Type* ptr)
+            operator()(const T_Acc& acc,T_Type* ptr)
             {
                 /* Get a bitmask with 1 for each thread in the warp, that executes this */
                 const int mask = __ballot(1);
@@ -110,8 +112,9 @@ namespace nvidia
         template<>
         struct AtomicAllIncKepler<long long int, true>
         {
+            template< typename T_Acc >
             DINLINE long long int
-            operator()(long long int* ptr)
+            operator()(const T_Acc& acc, long long int* ptr)
             {
                 return static_cast<long long int>(
                         AtomicAllIncKepler<unsigned long long int>()(
@@ -138,11 +141,11 @@ namespace nvidia
  * @param ptr pointer to memory (must be the same address for all threads in a block)
  *
  */
-template<typename T>
+template<typename T, typename T_Acc>
 DINLINE
-T atomicAllInc(T *ptr)
+T atomicAllInc(const T_Acc& acc, T *ptr)
 {
-    return detail::AtomicAllInc<T, (PMACC_CUDA_ARCH >= 300) >()(ptr);
+    return detail::AtomicAllInc<T, (PMACC_CUDA_ARCH >= 300) >()(acc, ptr);
 }
 
 /** optimized atomic value exchange
@@ -159,9 +162,9 @@ T atomicAllInc(T *ptr)
  * @param ptr pointer to memory (must be the same address for all threads in a block)
  * @param value new value (must be the same for all threads in a block)
  */
-template<typename T_Type>
+template<typename T_Type, typename T_Acc>
 DINLINE void
-atomicAllExch(T_Type* ptr, const T_Type value)
+atomicAllExch(const T_Acc& acc, T_Type* ptr, const T_Type value)
 {
 #if (__CUDA_ARCH__ >= 200)
     const int mask = __ballot(1);

@@ -47,9 +47,12 @@ using namespace PMacc;
 
 typedef FieldJ::DataBoxType J_DataBox;
 
-template<int workerMultiplier, class BlockDescription_, uint32_t AREA, class JBox, class ParBox, class Mapping, class FrameSolver>
-__global__ void kernelComputeCurrent(JBox fieldJ,
-                                     ParBox boxPar, FrameSolver frameSolver, Mapping mapper)
+template<int workerMultiplier, class BlockDescription_, uint32_t AREA>
+struct kernelComputeCurrent
+{
+template< class JBox, class ParBox, class Mapping, class FrameSolver, typename T_Acc>
+DINLINE void operator()(const T_Acc& acc, JBox fieldJ,
+                                     ParBox boxPar, FrameSolver frameSolver, Mapping mapper) const
 {
     typedef typename ParBox::FrameType FrameType;
     typedef typename ParBox::FramePtr FramePtr;
@@ -83,7 +86,7 @@ __global__ void kernelComputeCurrent(JBox fieldJ,
     }
 
     /* This memory is used by all virtual blocks*/
-    PMACC_AUTO(cachedJ, CachedBox::create < 0, typename JBox::ValueType > (BlockDescription_()));
+    PMACC_AUTO(cachedJ, CachedBox::create < 0, typename JBox::ValueType > (acc, BlockDescription_()));
 
     Set<typename JBox::ValueType > set(float3_X::create(0.0));
     ThreadCollective<BlockDescription_, cellsPerSuperCell * workerMultiplier> collectiveSet(linearThreadIdx);
@@ -98,7 +101,8 @@ __global__ void kernelComputeCurrent(JBox fieldJ,
          */
         if (virtualLinearId < particlesInSuperCell)
         {
-            frameSolver(*frame,
+            frameSolver(acc,
+                        *frame,
                         virtualLinearId,
                         cachedJ);
         }
@@ -119,6 +123,7 @@ __global__ void kernelComputeCurrent(JBox fieldJ,
     PMACC_AUTO(fieldJBlock, fieldJ.shift(blockCell));
     collectiveAdd(add, fieldJBlock, cachedJ);
 }
+};
 
 template<class ParticleAlgo, class Velocity, class TVec>
 struct ComputeCurrentPerFrame
@@ -129,8 +134,8 @@ struct ComputeCurrentPerFrame
     {
     }
 
-    template<class FrameType, class BoxJ >
-    DINLINE void operator()(FrameType& frame, const int localIdx, BoxJ & jBox)
+    template<class FrameType, class BoxJ , typename T_Acc>
+    DINLINE void operator()(const T_Acc& acc, FrameType& frame, const int localIdx, BoxJ & jBox)
     {
 
         PMACC_AUTO(particle, frame[localIdx]);
@@ -146,7 +151,8 @@ struct ComputeCurrentPerFrame
                                       attribute::getMass(weighting,particle));
         PMACC_AUTO(fieldJShiftToParticle, jBox.shift(localCell));
         ParticleAlgo perParticle;
-        perParticle(fieldJShiftToParticle,
+        perParticle(acc,
+                    fieldJShiftToParticle,
                     pos,
                     vel,
                     charge,
@@ -155,15 +161,17 @@ struct ComputeCurrentPerFrame
     }
 
 private:
-    const PMACC_ALIGN(m_deltaTime, float_32);
+    PMACC_ALIGN(m_deltaTime, const float_32);
 };
 
-template<class T_CurrentInterpolation, class T_Mapping>
-__global__ void kernelAddCurrentToEMF(typename FieldE::DataBoxType fieldE,
+struct kernelAddCurrentToEMF
+{
+template<class T_CurrentInterpolation, class T_Mapping, typename T_Acc>
+DINLINE void operator()(const T_Acc& acc, typename FieldE::DataBoxType fieldE,
                                       typename FieldB::DataBoxType fieldB,
                                       J_DataBox fieldJ,
                                       T_CurrentInterpolation currentInterpolation,
-                                      T_Mapping mapper)
+                                      T_Mapping mapper) const
 {
     /* Caching of fieldJ */
     typedef SuperCellDescription<
@@ -172,7 +180,7 @@ __global__ void kernelAddCurrentToEMF(typename FieldE::DataBoxType fieldE,
                 typename T_CurrentInterpolation::UpperMargin
                 > BlockArea;
 
-    PMACC_AUTO(cachedJ, CachedBox::create < 0, typename J_DataBox::ValueType > (BlockArea()));
+    PMACC_AUTO(cachedJ, CachedBox::create < 0, typename J_DataBox::ValueType > (acc, BlockArea()));
 
     nvidia::functors::Assign assign;
     const DataSpace<simDim> block(mapper.getSuperCellIndex(DataSpace<simDim > (blockIdx)));
@@ -196,15 +204,18 @@ __global__ void kernelAddCurrentToEMF(typename FieldE::DataBoxType fieldE,
     //   Change of the dE = - j / EPS0 * dt
     //                        j = current density (= current per area)
     //                          = fieldJ
-    currentInterpolation( fieldE.shift(cell), fieldB.shift(cell), cachedJ.shift(threadIndex) );
+    currentInterpolation( acc, fieldE.shift(cell), fieldB.shift(cell), cachedJ.shift(threadIndex) );
 }
+};
 
-template<class Mapping>
-__global__ void kernelBashCurrent(J_DataBox fieldJ,
+struct kernelBashCurrent
+{
+template<class Mapping, typename T_Acc>
+DINLINE void operator()(const T_Acc& acc, J_DataBox fieldJ,
                                   J_DataBox targetJ,
                                   DataSpace<simDim> exchangeSize,
                                   DataSpace<simDim> direction,
-                                  Mapping mapper)
+                                  Mapping mapper) const
 {
     const DataSpace<simDim> blockCell(
                                       mapper.getSuperCellIndex(DataSpace<simDim > (blockIdx))
@@ -232,13 +243,16 @@ __global__ void kernelBashCurrent(J_DataBox fieldJ,
 
     targetJ(targetCell) = fieldJ(sourceCell);
 }
+};
 
-template<class Mapping>
-__global__ void kernelInsertCurrent(J_DataBox fieldJ,
+struct kernelInsertCurrent
+{
+template<class Mapping, typename T_Acc>
+DINLINE void operator()(const T_Acc& acc, J_DataBox fieldJ,
                                     J_DataBox sourceJ,
                                     DataSpace<simDim> exchangeSize,
                                     DataSpace<simDim> direction,
-                                    Mapping mapper)
+                                    Mapping mapper) const
 {
     const DataSpace<Mapping::Dim> threadIndex(threadIdx);
     const DataSpace<simDim> blockCell(
@@ -271,5 +285,6 @@ __global__ void kernelInsertCurrent(J_DataBox fieldJ,
 
     fieldJ(targetCell) += sourceJ(sourceCell);
 }
+};
 
 }

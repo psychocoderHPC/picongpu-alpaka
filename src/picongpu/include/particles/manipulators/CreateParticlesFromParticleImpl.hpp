@@ -70,8 +70,8 @@ struct CreateParticlesFromParticleImpl : private T_Functor
         firstCall = true;
     }
 
-    template<typename T_Particle1, typename T_Particle2>
-    DINLINE void operator()(const DataSpace<simDim>& localCellIdx,
+    template<typename T_Particle1, typename T_Particle2, typename T_Acc>
+    DINLINE void operator()(const T_Acc& acc, const DataSpace<simDim>& localCellIdx,
                             T_Particle1& particle, T_Particle2&,
                             const bool isParticle, const bool)
     {
@@ -84,8 +84,8 @@ struct CreateParticlesFromParticleImpl : private T_Functor
         typedef typename DestFrameType::FramePtr DestFramePtr;
 
 
-        __shared__ DestFramePtr destFrame;
-        __shared__ int particlesInDestSuperCell;
+        sharedMem(destFrame, DestFramePtr);
+        sharedMem(particlesInDestSuperCell, int);
 
 
         uint32_t ltid = DataSpaceOperations<simDim>::template map<SuperCellSize>(DataSpace<simDim>(threadIdx));
@@ -104,7 +104,7 @@ struct CreateParticlesFromParticleImpl : private T_Functor
                 if (!destFrame.isValid() || particlesInDestSuperCell == cellsInSuperCell)
                 {
                     destFrame = destParBox.getEmptyFrame();
-                    destParBox.setAsLastFrame(destFrame, superCell);
+                    destParBox.setAsLastFrame(acc, destFrame, superCell);
                 }
                 firstCall = false;
             }
@@ -124,7 +124,7 @@ struct CreateParticlesFromParticleImpl : private T_Functor
             __syncthreads();
             if (isParticle && numParToCreate > 0)
             {
-                freeSlot = nvidia::atomicAllInc(&particlesInDestSuperCell);
+                freeSlot = nvidia::atomicAllInc(acc, &particlesInDestSuperCell);
             }
             --numParToCreate;
             if (freeSlot>-1 && freeSlot < cellsInSuperCell)
@@ -143,7 +143,7 @@ struct CreateParticlesFromParticleImpl : private T_Functor
                 {
                     particlesInDestSuperCell -= cellsInSuperCell;
                     destFrame = &(destParBox.getEmptyFrame());
-                    destParBox.setAsLastFrame(*destFrame, superCell);
+                    destParBox.setAsLastFrame(acc, *destFrame, superCell);
                 }
             }
             __syncthreads();

@@ -24,7 +24,6 @@
 
 #include "pmacc_types.hpp"
 #include "particles/frame_types.hpp"
-#include "basicOperations.hpp"
 
 #include "simulation_defines.hpp"
 
@@ -43,9 +42,11 @@ namespace picongpu
 {
     using namespace PMacc;
 
-
-    template<class BlockDescription_, uint32_t AREA, class TmpBox, class ParBox, class FrameSolver, class Mapping>
-    __global__ void kernelComputeSupercells( TmpBox fieldTmp, ParBox boxPar, FrameSolver frameSolver, Mapping mapper )
+    template< class BlockDescription_, uint32_t AREA >
+    struct kernelComputeSupercells
+    {
+    template< class TmpBox, class ParBox, class FrameSolver, class Mapping, typename T_Acc>
+    DINLINE void operator()( const T_Acc& acc,  TmpBox fieldTmp, ParBox boxPar, FrameSolver frameSolver, Mapping mapper ) const
     {
         typedef typename ParBox::FramePtr FramePtr;
         typedef typename BlockDescription_::SuperCellSize SuperCellSize;
@@ -55,9 +56,9 @@ namespace picongpu
         const DataSpace<simDim > threadIndex( threadIdx );
         const int linearThreadIdx = DataSpaceOperations<simDim>::template map<SuperCellSize > ( threadIndex );
 
-        __shared__ typename PMacc::traits::GetEmptyDefaultConstructibleType<FramePtr>::type frame;
+        sharedMem(frame, typename PMacc::traits::GetEmptyDefaultConstructibleType<FramePtr>::type);
 
-        __shared__ lcellId_t particlesInSuperCell;
+        sharedMem(particlesInSuperCell, lcellId_t);
 
 
         if( linearThreadIdx == 0 )
@@ -70,7 +71,7 @@ namespace picongpu
         if( !frame.isValid() )
             return; //end kernel if we have no frames
 
-        PMACC_AUTO( cachedVal, CachedBox::create < 0, typename TmpBox::ValueType > ( BlockDescription_( ) ) );
+        PMACC_AUTO( cachedVal, CachedBox::create < 0, typename TmpBox::ValueType > ( acc, BlockDescription_( ) ) );
         Set<typename TmpBox::ValueType > set( float_X( 0.0 ) );
 
         ThreadCollective<BlockDescription_> collective( linearThreadIdx );
@@ -81,7 +82,7 @@ namespace picongpu
         {
             if( linearThreadIdx < particlesInSuperCell )
             {
-                frameSolver( *frame, linearThreadIdx, SuperCellSize::toRT(), cachedVal );
+                frameSolver( acc, *frame, linearThreadIdx, SuperCellSize::toRT(), cachedVal );
             }
             __syncthreads( );
             if( linearThreadIdx == 0 )
@@ -98,13 +99,17 @@ namespace picongpu
         collective( add, fieldTmpBlock, cachedVal );
         __syncthreads( );
     }
+    };
 
-    template<class Box, class Mapping>
-    __global__ void kernelBashValue( Box fieldTmp,
+    struct kernelBashValue
+    {
+    template<class Box, class Mapping, typename T_Acc>
+    DINLINE void operator()( const T_Acc& acc,
+                                     Box fieldTmp,
                                      Box targetJ,
                                      DataSpace<simDim> exchangeSize,
                                      DataSpace<simDim> direction,
-                                     Mapping mapper )
+                                     Mapping mapper ) const
     {
         const DataSpace<Mapping::Dim> threadIndex(threadIdx);
         const DataSpace<simDim> blockCell(
@@ -131,13 +136,17 @@ namespace picongpu
         }
         targetJ( targetCell ) = fieldTmp( sourceCell );
     }
+    };
 
-    template<class Box, class Mapping>
-    __global__ void kernelInsertValue( Box fieldTmp,
+    struct kernelInsertValue
+    {
+    template<class Box, class Mapping, typename T_Acc>
+    DINLINE void operator()( const T_Acc& acc,
+                                       Box fieldTmp,
                                        Box sourceTmp,
                                        DataSpace<simDim> exchangeSize,
                                        DataSpace<simDim> direction,
-                                       Mapping mapper )
+                                       Mapping mapper ) const
     {
         const DataSpace<Mapping::Dim> threadIndex(threadIdx);
         const DataSpace<simDim> blockCell(
@@ -170,5 +179,6 @@ namespace picongpu
 
         fieldTmp( targetCell ) += sourceTmp( sourceCell );
     }
+    };
 
 } // namespace picongpu

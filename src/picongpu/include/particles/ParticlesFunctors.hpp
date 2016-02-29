@@ -87,12 +87,12 @@ struct CallCreateParticleBuffer
     {
 
         typedef typename SpeciesType::FrameType FrameType;
-
+#if (PMACC_CUDA_ENABLED == 1)
         log<picLog::MEMORY >("mallocMC: free slots for species %3%: %1% a %2%") %
             mallocMC::getAvailableSlots(sizeof (FrameType)) %
             sizeof (FrameType) %
             FrameType::getName();
-
+#endif
         tuple[SpeciesName()]->createParticleBuffer();
     }
 };
@@ -245,6 +245,7 @@ struct PushAllSpecies
     }
 };
 
+#if 0
 /** \struct CallIonization
  *
  * \brief Tests if species can be ionized and calls the kernel to do that
@@ -301,7 +302,7 @@ struct CallIonization
              * "blocks" will be calculated from "this->cellDescription" and "CORE + BORDER"
              * "threads" is calculated from the previously defined vector "block"
              */
-            __picKernelArea( particles::ionization::kernelIonizeParticles, *cellDesc, CORE + BORDER )
+            __picKernelArea( particles::ionization::kernelIonizeParticles)( *cellDesc, CORE + BORDER )
                 (block)
                 ( srcSpeciesPtr->getDeviceParticlesBox( ),
                   electronsPtr->getDeviceParticlesBox( ),
@@ -316,6 +317,7 @@ struct CallIonization
     }
 
 }; // struct CallIonization
+#endif
 
 } //namespace particles
 

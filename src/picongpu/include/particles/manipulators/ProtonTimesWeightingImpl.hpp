@@ -60,8 +60,8 @@ struct ProtonTimesWeightingImpl
      *
      * \see picongpu::particles::ManipulateCloneSpecies , picongpu::kernelCloneParticles
      */
-    template<typename T_DestParticle, typename T_SrcParticle>
-    DINLINE void operator()(const DataSpace<simDim>&,
+    template<typename T_DestParticle, typename T_SrcParticle, typename T_Acc>
+    DINLINE void operator()(const T_Acc& acc, const DataSpace<simDim>&,
                             T_DestParticle& particleDest, T_SrcParticle&,
                             const bool isDestParticle, const bool isSrcParticle)
     {

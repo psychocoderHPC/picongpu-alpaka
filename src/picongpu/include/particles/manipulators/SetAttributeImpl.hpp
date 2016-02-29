@@ -43,8 +43,8 @@ struct SetAttributeImpl : private T_ValueFunctor
     {
     }
 
-    template<typename T_Particle1, typename T_Particle2>
-    DINLINE void operator()(const DataSpace<simDim>& localCellIdx,
+    template<typename T_Particle1, typename T_Particle2, typename T_Acc>
+    DINLINE void operator()(const T_Acc& acc, const DataSpace<simDim>& localCellIdx,
                             T_Particle1& particle, T_Particle2&,
                             const bool isParticle, const bool)
     {

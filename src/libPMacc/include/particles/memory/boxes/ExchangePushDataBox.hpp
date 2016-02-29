@@ -55,7 +55,8 @@ public:
     {
     }
 
-    HDINLINE TileDataBox<VALUE> pushN(TYPE count, const DataSpace<DIM> &superCell)
+    template< typename T_Acc >
+    HDINLINE TileDataBox<VALUE> pushN(const T_Acc& acc,TYPE count, const DataSpace<DIM> &superCell)
     {
         TYPE oldSize = atomicAdd(currentSizePointer, count); //get count VALUEs
 
@@ -72,7 +73,7 @@ public:
                 count = maxSize - oldSize;
         }
 
-        TileDataBox<PushType> tmp = virtualMemory.pushN(1);
+        TileDataBox<PushType> tmp = virtualMemory.pushN(acc, 1);
         tmp[0].setSuperCell(superCell);
         tmp[0].setCount(count);
         tmp[0].setStartIndex(oldSize);

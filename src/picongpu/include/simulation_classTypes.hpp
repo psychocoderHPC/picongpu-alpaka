@@ -44,7 +44,8 @@ namespace picongpu
  *
  * @param ... parameters to pass to kernel
  */
-#define PIC_PMACC_CUDAPARAMS(...) (__VA_ARGS__,mapper);                        \
+#define PIC_PMACC_CUDAPARAMS(...)                                                  \
+        CUPLA_KERNEL(ThePMaccKernelName)(pmacc_gridSize,pmacc_blockSize,pmacc_kernelSharedMem,pmacc_kernelStream)(__VA_ARGS__, pmacc_mapper); \
         PMACC_ACTIVATE_KERNEL                                                  \
     }   /*this is used if call is EventTask.waitforfinished();*/
 
@@ -56,9 +57,17 @@ namespace picongpu
  * @param block sizes of block on gpu
  * @param ... amount of shared memory for the kernel (optional)
  */
-#define PIC_PMACC_CUDAKERNELCONFIG(block,...) <<<mapper.getGridDim(),(block),  \
-    __VA_ARGS__+0,                                                             \
-    taskKernel->getCudaStream()>>> PIC_PMACC_CUDAPARAMS
+#define PIC_PMACC_CUDAKERNELCONFIG(block,...)                                 \
+    dim3 pmacc_gridSize(pmacc_mapper.getGridDim());                                            \
+    dim3 pmacc_blockSize(block);                                          \
+    /*we need +0 if VA_ARGS is empty, because we must put in a value*/         \
+    size_t pmacc_kernelSharedMem = __VA_ARGS__+0;                                    \
+    auto pmacc_kernelStream = pmacc_taskKernel->getCudaStream(); PIC_PMACC_CUDAPARAMS
+
+#define PIC_AREA_CUDAKERNELCONFIG(description,area) \
+    AreaMapping<area,MappingDesc> pmacc_mapper(description);                               \
+    CUDA_CHECK_KERNEL_MSG(cudaDeviceSynchronize(),"Crash before kernel call");          \
+    PIC_PMACC_CUDAKERNELCONFIG
 
 /**
  * Calls a CUDA kernel and creates an EventTask which represents the kernel.
@@ -69,8 +78,6 @@ namespace picongpu
  * @param kernelname name of the CUDA kernel (can also used with templates etc. myKernnel<1>)
  * @param area area type for which the kernel is called
  */
-#define __picKernelArea(kernelname,description,area) {                               \
-    CUDA_CHECK_KERNEL_MSG(cudaDeviceSynchronize(),"picKernelArea crash before kernel call");       \
-    AreaMapping<area,MappingDesc> mapper(description);                               \
-    TaskKernel *taskKernel =  Environment<>::get().Factory().createTaskKernel(#kernelname);  \
-    kernelname PIC_PMACC_CUDAKERNELCONFIG
+#define __picKernelArea(...) {                               \
+    PMacc::TaskKernel *pmacc_taskKernel = PMacc::Environment<>::get().Factory().createTaskKernel(#__VA_ARGS__);     \
+    using ThePMaccKernelName = __VA_ARGS__; PIC_AREA_CUDAKERNELCONFIG

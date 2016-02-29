@@ -94,7 +94,7 @@ namespace manipulators
         BOOST_STATIC_CONSTEXPR float_64 temperature = 0.0005;
     };
     /* definition of SetDrift start*/
-    typedef TemperatureImpl<TemperatureParam,nvidia::functors::Add> AddTemperature;
+//    typedef TemperatureImpl<TemperatureParam,nvidia::functors::Add> AddTemperature;
 
 
     struct IfRelativeGlobalPositionParamLowQuarter

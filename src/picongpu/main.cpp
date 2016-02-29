@@ -28,7 +28,14 @@
  * @author Heiko Burau, Rene Widera, Wolfgang Hoenig, Felix Schmitt, Axel Huebl, Michael Bussmann, Guido Juckeland
  */
 
+// set ALPAKA_ACC_GPU_CUDA_ENABLED
+#include "cupla/types.hpp"
 
+#ifndef PMACC_CUDA_ENABLED
+#define PMACC_CUDA_ENABLED ALPAKA_ACC_GPU_CUDA_ENABLED
+#endif
+
+#if (PMACC_CUDA_ENABLED == 1)
 // include the heap with the arguments given in the config
 #include "mallocMC/mallocMC_utils.hpp"
 
@@ -70,6 +77,10 @@ mallocMC::AlignmentPolicies::Shrink<>
 
 //use ScatterAllocator to replace malloc/free
 MALLOCMC_SET_ALLOCATOR_TYPE( ScatterAllocator );
+#include "mallocMC/mallocMC.hpp"
+#endif
+
+#include <cuda_to_cupla.hpp>
 
 #include "ArgsParser.hpp"
 #include "communication/manager_common.h"

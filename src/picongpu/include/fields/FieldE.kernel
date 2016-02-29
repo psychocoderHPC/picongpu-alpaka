@@ -36,11 +36,13 @@ namespace picongpu
 {
 using namespace PMacc;
 
-template<class EBox>
-__global__ void kernelLaserE(EBox fieldE, LaserManipulator lMan)
+struct kernelLaserE
+{
+template<class EBox, typename T_Acc>
+DINLINE void operator()(const T_Acc& acc, EBox fieldE, LaserManipulator lMan) const
 {
     DataSpace<simDim> cellOffset;
-    
+
     cellOffset.x() = (blockIdx.x * blockDim.x) + threadIdx.x;
     DataSpace<simDim> EFieldOffset;
     EFieldOffset.x() = cellOffset.x() + (MappingDesc::SuperCellSize::x::value * GUARD_SIZE);
@@ -86,7 +88,7 @@ __global__ void kernelLaserE(EBox fieldE, LaserManipulator lMan)
         fieldE(EFieldOffset) = lMan.getManipulation(cellOffset);
     }
 }
-
+};
 }
 
 

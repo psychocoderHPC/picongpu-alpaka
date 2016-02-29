@@ -48,7 +48,7 @@ namespace picongpu
         DINLINE void
         operator()( Type& dest, const Type src )
         {
-            atomicAddWrapper( &dest, src );
+            atomicAdd( &dest, src );
         }
     };
 
@@ -108,7 +108,7 @@ namespace picongpu
             p_bin < num_pbins ? /* do not change p_bin */ : p_bin=num_pbins-1;
 
             /** \todo take particle shape into account */
-            atomicAddWrapper( &(*curDBufferOriginInBlock( p_bin, r_bin )),
+            atomicAdd( &(*curDBufferOriginInBlock( p_bin, r_bin )),
                               particleChargeDensity );
         }
     };

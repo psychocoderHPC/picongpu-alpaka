@@ -39,8 +39,9 @@ struct None
     typedef typename PMacc::math::CT::make_Int<dim, 0>::type LowerMargin;
     typedef typename PMacc::math::CT::make_Int<dim, 0>::type UpperMargin;
 
-    template<typename DataBoxE, typename DataBoxB, typename DataBoxJ>
-    HDINLINE void operator()(DataBoxE fieldE,
+    template<typename DataBoxE, typename DataBoxB, typename DataBoxJ, typename T_Acc>
+    HDINLINE void operator()(const T_Acc& acc,
+                             DataBoxE fieldE,
                              DataBoxB,
                              DataBoxJ fieldJ )
     {

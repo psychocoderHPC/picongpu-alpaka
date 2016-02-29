@@ -68,6 +68,9 @@ namespace po = boost::program_options;
 /////////////////////////////////////  Radiation Kernel  //////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////
 
+
+struct kernelRadiationParticles
+{
 /**
  * The radiation kernel calculates for all particles on the device the
  * emitted radiation for every direction and every frequency.
@@ -95,24 +98,25 @@ namespace po = boost::program_options;
  * @param freqFkt
  * @param simBoxSize
  */
-template<class ParBox, class DBox, class Mapping>
-__global__
+template<class ParBox, class DBox, class Mapping, typename T_Acc>
+DINLINE
 /*__launch_bounds__(256, 4)*/
-void kernelRadiationParticles(ParBox pb,
+void operator()(const T_Acc& acc,
+                              ParBox pb,
                               DBox radiation,
                               DataSpace<simDim> globalOffset,
                               uint32_t currentStep,
                               Mapping mapper,
                               radiation_frequencies::FreqFunctor freqFkt,
-                              DataSpace<simDim> simBoxSize)
+                              DataSpace<simDim> simBoxSize) const
 {
 
     typedef typename MappingDesc::SuperCellSize Block;
     typedef typename ParBox::FrameType FRAME;
     typedef typename ParBox::FramePtr FramePtr;
 
-    __shared__ typename PMacc::traits::GetEmptyDefaultConstructibleType<FramePtr>::type frame; // pointer to  frame storing particles
-    __shared__ lcellId_t particlesInFrame; // number  of particles in current frame
+    sharedMem(frame, typename PMacc::traits::GetEmptyDefaultConstructibleType<FramePtr>::type); // pointer to  frame storing particles
+    sharedMem(particlesInFrame, lcellId_t); // number  of particles in current frame
 
     using namespace parameters; // parameters of radiation
 
@@ -128,25 +132,25 @@ void kernelRadiationParticles(ParBox pb,
 
     const int blockSize=PMacc::math::CT::volume<Block>::type::value;
     // vectorial part of the integrand in the Jackson formula
-    __shared__ vector_64 real_amplitude_s[blockSize];
+    sharedMem(real_amplitude_s, cupla::Array<vector64, blockSize>);
 
     // retarded time
-    __shared__ picongpu::float_64 t_ret_s[blockSize];
+    sharedMem(t_ret_s, cupla::Array<picongpu::float_64, blockSize);
 
     // storage for macro particle weighting needed if
     // the coherent and incoherent radiation of a single
     // macro-particle needs to be considered
 #if (__COHERENTINCOHERENTWEIGHTING__==1)
-    __shared__ float_X radWeighting_s[blockSize];
+    sharedMem(radWeighting_s, cupla::Array<float_x,blockSize>);
 #endif
 
     // particle counter used if not all particles are considered for
     // radiation calculation
-    __shared__ int counter_s;
+    sharedMem(counter_s, int);
 
     // memory for Nyquist frequency at current time step
 #if (__NYQUISTCHECK__==1)
-    __shared__ NyquistLowPass lowpass_s[blockSize];
+    sharedMem(lowpass_s, cupla::Array<NyquistLowPass,blockSize>);
 #endif
 
 
@@ -248,7 +252,7 @@ void kernelRadiationParticles(ParBox pb,
 #if(RAD_MARK_PARTICLE>1) || (RAD_ACTIVATE_GAMMA_FILTER!=0)
                     if (par[radiationFlag_])
 #endif
-                    saveParticleAt = nvidia::atomicAllInc(&counter_s);
+                    saveParticleAt = nvidia::atomicAllInc(acc, &counter_s);
                     /* for information:
                     *   atomicAdd returns an int with the previous
                     *   value of "counter_s" != -1
@@ -488,7 +492,7 @@ void kernelRadiationParticles(ParBox pb,
 
 
 } // end radiation kernel
-
+};
 
 }
 
