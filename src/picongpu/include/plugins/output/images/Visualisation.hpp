@@ -176,8 +176,11 @@ struct typicalFields < 5 >
     }
 };
 
-template<class EBox, class BBox, class JBox, class Mapping>
-__global__ void kernelPaintFields(
+struct kernelPaintFields
+{
+template<class EBox, class BBox, class JBox, class Mapping, typename T_Acc>
+DINLINE void operator()(
+                                  const T_Acc& acc,
                                   EBox fieldE,
                                   BBox fieldB,
                                   JBox fieldJ,
@@ -186,7 +189,7 @@ __global__ void kernelPaintFields(
                                   const int slice,
                                   const uint32_t globalOffset,
                                   const uint32_t sliceDim,
-                                  Mapping mapper)
+                                  Mapping mapper) const
 {
     typedef typename MappingDesc::SuperCellSize Block;
     const DataSpace<simDim> threadId(threadIdx);
@@ -261,21 +264,25 @@ __global__ void kernelPaintFields(
     // draw to (perhaps smaller) image cell
     image(imageCell) = pic;
 }
+};
 
-template<class ParBox, class Mapping>
-__global__ void
-kernelPaintParticles3D(ParBox pb,
+struct kernelPaintParticles3D
+{
+template<class ParBox, class Mapping, typename T_Acc>
+DINLINE void
+operator()(const T_Acc& acc,
+                       ParBox pb,
                        DataBox<PitchedBox<float3_X, DIM2> > image,
                        DataSpace<DIM2> transpose,
                        int slice,
                        uint32_t globalOffset,
                        uint32_t sliceDim,
-                       Mapping mapper)
+                       Mapping mapper) const
 {
     typedef typename ParBox::FramePtr FramePtr;
     typedef typename MappingDesc::SuperCellSize Block;
-    __shared__ typename PMacc::traits::GetEmptyDefaultConstructibleType<FramePtr>::type frame;
-    __shared__ bool isValid;
+    sharedMem(frame, typename PMacc::traits::GetEmptyDefaultConstructibleType<FramePtr>::type);
+    sharedMem(isValid, bool);
 
     bool isImageThread = false;
 
@@ -301,7 +308,7 @@ kernelPaintParticles3D(ParBox pb,
     if (globalCell == slice)
 #endif
     {
-        nvidia::atomicAllExch((int*) &isValid,1); /*WAW Error in cuda-memcheck racecheck*/
+        nvidia::atomicAllExch(acc, (int*) &isValid,1); /*WAW Error in cuda-memcheck racecheck*/
         isImageThread = true;
     }
     __syncthreads();
@@ -317,7 +324,7 @@ kernelPaintParticles3D(ParBox pb,
 
     // counter is always DIM2
     typedef DataBox < PitchedBox< float_X, DIM2 > > SharedMem;
-    extern __shared__ float_X shBlock[];
+    sharedMemExtern(shBlock,float_X);
 
     const DataSpace<simDim> blockSize(blockDim);
     SharedMem counter(PitchedBox<float_X, DIM2 > ((float_X*) shBlock,
@@ -350,7 +357,7 @@ kernelPaintParticles3D(ParBox pb,
 #endif
             {
                 const DataSpace<DIM2> reducedCell(particleCellId[transpose.x()], particleCellId[transpose.y()]);
-                atomicAddWrapper(&(counter(reducedCell)), particle[weighting_] / particles::TYPICAL_NUM_PARTICLES_PER_MACROPARTICLE);
+                atomicAdd(&(counter(reducedCell)), particle[weighting_] / particles::TYPICAL_NUM_PARTICLES_PER_MACROPARTICLE);
             }
         }
         __syncthreads();
@@ -389,13 +396,15 @@ kernelPaintParticles3D(ParBox pb,
         if (image(imageCell).z() > float_X(1.0)) image(imageCell).z() = float_X(1.0);
     }
 }
-
+};
 
 namespace vis_kernels
 {
 
-template<class Mem, typename Type>
-__global__ void divideAnyCell(Mem mem, uint32_t n, Type divisor)
+struct divideAnyCell
+{
+template<class Mem, typename Type, typename T_Acc>
+DINLINE void operator()(const T_Acc& acc, Mem mem, uint32_t n, Type divisor) const
 {
     uint32_t tid = blockIdx.x * blockDim.x + threadIdx.x;
     if (tid >= n) return;
@@ -403,9 +412,12 @@ __global__ void divideAnyCell(Mem mem, uint32_t n, Type divisor)
     const float3_X FLT3_MIN = float3_X(FLT_MIN, FLT_MIN, FLT_MIN);
     mem[tid] /= (divisor + FLT3_MIN);
 }
+};
 
-template<class Mem>
-__global__ void channelsToRGB(Mem mem, uint32_t n)
+struct channelsToRGB
+{
+template<class Mem, typename T_Acc>
+DINLINE void operator()(const T_Acc& acc, Mem mem, uint32_t n) const
 {
     uint32_t tid = blockIdx.x * blockDim.x + threadIdx.x;
     if (tid >= n) return;
@@ -423,6 +435,7 @@ __global__ void channelsToRGB(Mem mem, uint32_t n)
                                        visPreview::preChannel3_opacity);
     mem[tid] = rgb;
 }
+};
 
 }
 
@@ -523,7 +536,7 @@ public:
         typedef MappingDesc::SuperCellSize SuperCellSize;
         assert(cellDescription != NULL);
         //create image fields
-        __picKernelArea((kernelPaintFields), *cellDescription, CORE + BORDER)
+        __picKernelArea(kernelPaintFields)( *cellDescription, CORE + BORDER)
             (SuperCellSize::toRT().toDim3())
             (fieldE->getDeviceDataBox(),
              fieldB->getDeviceDataBox(),
@@ -574,7 +587,7 @@ public:
         DataSpace<DIM2> blockSize2D(blockSize[m_transpose.x()], blockSize[m_transpose.y()]);
 
         //create image particles
-        __picKernelArea((kernelPaintParticles3D), *cellDescription, CORE + BORDER)
+        __picKernelArea(kernelPaintParticles3D)( *cellDescription, CORE + BORDER)
             (SuperCellSize::toRT().toDim3(), blockSize2D.productOfComponents() * sizeof (float_X))
             (particles->getDeviceParticlesBox(),
              img->getDeviceBuffer().getDataBox(),

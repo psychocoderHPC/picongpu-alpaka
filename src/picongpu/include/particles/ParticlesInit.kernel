@@ -61,19 +61,23 @@ DINLINE float_X calcRealDensity(T_GasProfile& gasFunctor,
     return value;
 }
 
-template< typename T_Species, typename T_GasProfile, typename T_PositionFunctor, typename ParBox, class Mapping>
-__global__ void kernelFillGridWithParticles(T_GasProfile gasFunctor,
+template< typename T_Species >
+struct kernelFillGridWithParticles
+{
+template< typename T_GasProfile, typename T_PositionFunctor, typename ParBox, class Mapping, typename T_Acc>
+DINLINE void operator()(const T_Acc& acc,
+                                            T_GasProfile gasFunctor,
                                             T_PositionFunctor positionFunctor,
                                             DataSpace<simDim> totalGpuCellOffset,
                                             ParBox pb,
-                                            Mapping mapper)
+                                            Mapping mapper) const
 {
     typedef typename ParBox::FramePtr FramePtr;
     const DataSpace<simDim> superCells(mapper.getGridSuperCells());
 
-    __shared__ typename PMacc::traits::GetEmptyDefaultConstructibleType<FramePtr>::type frame;
+    sharedMem(frame, typename PMacc::traits::GetEmptyDefaultConstructibleType<FramePtr>::type);
 
-    
+
     typedef typename Mapping::SuperCellSize SuperCellSize;
 
     const DataSpace<simDim > threadIndex(threadIdx);
@@ -96,7 +100,7 @@ __global__ void kernelFillGridWithParticles(T_GasProfile gasFunctor,
 
     const float_X realParticlesPerCell = realDensity * CELL_VOLUME;
 
-    __shared__ int finished;
+    sharedMem(finished, int);
     if (linearThreadIdx == 0)
         finished = 1;
     __syncthreads();
@@ -111,7 +115,7 @@ __global__ void kernelFillGridWithParticles(T_GasProfile gasFunctor,
     const uint32_t totalNumParsPerCell = numParsPerCell;
 
     if (numParsPerCell > 0)
-        nvidia::atomicAllExch(&finished, 0); //one or more cells have particles to create
+        nvidia::atomicAllExch(acc, &finished, 0); //one or more cells have particles to create
 
     __syncthreads();
     if (finished == 1)
@@ -120,7 +124,7 @@ __global__ void kernelFillGridWithParticles(T_GasProfile gasFunctor,
     if (linearThreadIdx == 0)
     {
         frame = pb.getEmptyFrame();
-        pb.setAsLastFrame(frame, superCellIdx);
+        pb.setAsLastFrame(acc, frame, superCellIdx);
     }
 
     __syncthreads();
@@ -173,10 +177,11 @@ __global__ void kernelFillGridWithParticles(T_GasProfile gasFunctor,
         if (linearThreadIdx == 0 && finished == 0)
         {
             frame = pb.getEmptyFrame();
-            pb.setAsLastFrame(frame, superCellIdx);
+            pb.setAsLastFrame(acc, frame, superCellIdx);
         }
     }
     while (finished == 0);
 }
+};
 
 }

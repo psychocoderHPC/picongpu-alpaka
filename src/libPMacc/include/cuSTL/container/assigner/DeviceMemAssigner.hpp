@@ -61,17 +61,17 @@ struct DeviceMemAssigner
         /* The greatest common divisor of each component of the volume size
          * and a certain power of two value gives the best suitable block size */
         boost::math::gcd_evaluator<size_t> gcd; // greatest common divisor
-        math::Size_t<3> blockDim(math::Size_t<3>::create(1));
+        math::Size_t<3> blockSize(math::Size_t<3>::create(1));
         int maxValues[] = {16, 16, 4}; // maximum values for each dimension
         for(int i = 0; i < dim; i++)
         {
-            blockDim[i] = gcd(buffer->size()[i], maxValues[dim-1]);
+            blockSize[i] = gcd(buffer->size()[i], maxValues[dim-1]);
         }
         /* the maximum number of threads per block for devices with
          * compute capability > 2.0 is 1024 */
-        assert(blockDim.productOfComponents() <= 1024);
+        assert(blockSize.productOfComponents() <= 1024);
 
-        algorithm::kernel::RT::Foreach foreach(blockDim);
+        algorithm::kernel::RT::Foreach foreach(blockSize);
         foreach(myZone, cursor, lambda::_1 = value);
     }
 };

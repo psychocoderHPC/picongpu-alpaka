@@ -176,7 +176,7 @@ void Particles<T_ParticleDescription>::update(uint32_t )
 
     dim3 block( MappingDesc::SuperCellSize::toRT().toDim3() );
 
-    __picKernelArea( kernelMoveAndMarkParticles<BlockArea>, this->cellDescription, CORE + BORDER )
+    __picKernelArea( kernelMoveAndMarkParticles<BlockArea>)( this->cellDescription, CORE + BORDER )
         (block)
         ( this->getDeviceParticlesBox( ),
           this->fieldE->getDeviceDataBox( ),
@@ -202,7 +202,7 @@ void Particles<T_ParticleDescription>::initGas( T_GasFunctor& gasFunctor,
     totalGpuCellOffset.y( ) += numSlides * localCells.y( );
 
     dim3 block( MappingDesc::SuperCellSize::toRT( ).toDim3( ) );
-    __picKernelArea( (kernelFillGridWithParticles<Particles<T_ParticleDescription> >),
+    __picKernelArea( kernelFillGridWithParticles<Particles<T_ParticleDescription> >)(
                       this->cellDescription, CORE + BORDER)
         (block)
         ( gasFunctor, positionFunctor, totalGpuCellOffset, this->particlesBuffer->getDeviceParticleBox( ) );
@@ -219,7 +219,7 @@ void Particles<T_ParticleDescription>::deviceCloneFrom( Particles< T_SrcParticle
     dim3 block( PMacc::math::CT::volume<SuperCellSize>::type::value );
 
     log<picLog::SIMULATION_STATE > ( "clone species %1%" ) % FrameType::getName( );
-    __picKernelArea( kernelCloneParticles, this->cellDescription, CORE + BORDER )
+    __picKernelArea( kernelCloneParticles)( this->cellDescription, CORE + BORDER )
         (block) ( this->getDeviceParticlesBox( ), src.getDeviceParticlesBox( ), functor );
     this->fillAllGaps( );
 }
@@ -231,7 +231,7 @@ void Particles<T_ParticleDescription>::manipulateAllParticles( uint32_t currentS
 
     dim3 block( MappingDesc::SuperCellSize::toRT( ).toDim3( ) );
 
-    __picKernelArea( kernelManipulateAllParticles, this->cellDescription, CORE + BORDER )
+    __picKernelArea( kernelManipulateAllParticles)( this->cellDescription, CORE + BORDER )
         (block)
         ( this->particlesBuffer->getDeviceParticleBox( ),
           functor );

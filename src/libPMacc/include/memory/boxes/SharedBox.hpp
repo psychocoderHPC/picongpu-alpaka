@@ -22,7 +22,7 @@
 
 #pragma once
 
-//#include <cuSTL/cursor/compile-time/BufferCursor.hpp>
+#include <cuSTL/cursor/compile-time/BufferCursor.hpp>
 #include <math/vector/Float.hpp>
 #include <math/Vector.hpp>
 #include "pmacc_types.hpp"
@@ -173,14 +173,14 @@ public:
         return This(&mem_sh[0][0]);
     }
 
-    /*
+
     HDINLINE PMacc::cursor::CT::BufferCursor<ValueType, ::PMacc::math::CT::Int<sizeof (ValueType) * Size::x::value> >
     toCursor() const
     {
         return PMacc::cursor::CT::BufferCursor<ValueType, ::PMacc::math::CT::Int<sizeof (ValueType) * Size::x::value> >
             ((ValueType*) fixedPointer);
     }
-*/
+
 protected:
 
     PMACC_ALIGN(fixedPointer, ValueType*);
@@ -232,7 +232,7 @@ public:
     {
         return fixedPointer;
     }
-/*
+
     HDINLINE PMacc::cursor::CT::BufferCursor<ValueType, ::PMacc::math::CT::Int<sizeof (ValueType) * Size::x::value,
     sizeof (ValueType) * Size::x::value * Size::y::value> >
     toCursor() const
@@ -241,7 +241,7 @@ public:
             sizeof (ValueType) * Size::x::value * Size::y::value> >
             ((ValueType*)fixedPointer);
     }
-*/
+
     /*this call synchronize a block and must called from any thread and not inside a if clauses*/
     template<typename T_Acc>
     static DINLINE This init(const T_Acc& acc)

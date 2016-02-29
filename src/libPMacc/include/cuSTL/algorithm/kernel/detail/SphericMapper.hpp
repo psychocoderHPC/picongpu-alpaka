@@ -60,17 +60,19 @@ struct SphericMapper<1, BlockSize>
         return dim3(size.x() / BlockSize::x::value, 1, 1);
     }
 
+    template< typename T_Acc >
     HDINLINE
-    math::Int<1> operator()(const math::Int<1>& _blockIdx,
+    math::Int<1> operator()(const T_Acc& ,const math::Int<1>& _blockIdx,
                               const math::Int<1>& _threadIdx) const
     {
         return _blockIdx.x() * BlockSize::x::value + _threadIdx.x();
     }
 
+    template< typename T_Acc >
     HDINLINE
-    math::Int<1> operator()(const dim3& _blockIdx, const dim3& _threadIdx = dim3(0,0,0)) const
+    math::Int<1> operator()(const T_Acc& acc,const dim3& _blockIdx, const dim3& _threadIdx = dim3(0,0,0)) const
     {
-        return operator()(math::Int<1>((int)_blockIdx.x),
+        return operator()(acc, math::Int<1>((int)_blockIdx.x),
                           math::Int<1>((int)_threadIdx.x));
     }
 };
@@ -86,18 +88,20 @@ struct SphericMapper<2, BlockSize>
                     size.y() / BlockSize::y::value, 1);
     }
 
+    template< typename T_Acc >
     HDINLINE
-    math::Int<2> operator()(const math::Int<2>& _blockIdx,
+    math::Int<2> operator()(const T_Acc& ,const math::Int<2>& _blockIdx,
                               const math::Int<2>& _threadIdx) const
     {
         return math::Int<2>( _blockIdx.x() * BlockSize::x::value + _threadIdx.x(),
                              _blockIdx.y() * BlockSize::y::value + _threadIdx.y() );
     }
 
+    template< typename T_Acc >
     HDINLINE
-    math::Int<2> operator()(const dim3& _blockIdx, const dim3& _threadIdx = dim3(0,0,0)) const
+    math::Int<2> operator()(const T_Acc& acc,const dim3& _blockIdx, const dim3& _threadIdx = dim3(0,0,0)) const
     {
-        return operator()(math::Int<2>(_blockIdx.x, _blockIdx.y),
+        return operator()(acc, math::Int<2>(_blockIdx.x, _blockIdx.y),
                           math::Int<2>(_threadIdx.x, _threadIdx.y));
     }
 };
@@ -114,17 +118,19 @@ struct SphericMapper<3, BlockSize>
                     size.z() / BlockSize::z::value);
     }
 
+    template< typename T_Acc >
     HDINLINE
-    math::Int<3> operator()(const math::Int<3>& _blockIdx,
+    math::Int<3> operator()(const T_Acc& , const math::Int<3>& _blockIdx,
                              const math::Int<3>& _threadIdx) const
     {
         return math::Int<3>( _blockIdx * (math::Int<3>)BlockSize().toRT() + _threadIdx );
     }
 
+    template< typename T_Acc >
     HDINLINE
-    math::Int<3> operator()(const dim3& _blockIdx, const dim3& _threadIdx = dim3(0,0,0)) const
+    math::Int<3> operator()(const T_Acc& acc, const dim3& _blockIdx, const dim3& _threadIdx = dim3(0,0,0)) const
     {
-        return operator()(math::Int<3>(_blockIdx.x, _blockIdx.y, _blockIdx.z),
+        return operator()(acc, math::Int<3>(_blockIdx.x, _blockIdx.y, _blockIdx.z),
                           math::Int<3>(_threadIdx.x, _threadIdx.y, _threadIdx.z));
     }
 };

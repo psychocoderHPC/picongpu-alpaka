@@ -46,6 +46,9 @@ namespace ionization
 
 using namespace PMacc;
 
+
+struct kernelIonizeParticles
+{
 /** kernelIonizeParticles
  * \brief main kernel for ionization
  *
@@ -59,11 +62,12 @@ using namespace PMacc;
  * \tparam FrameIonizer \see e.g. BSI_Impl in BSI_Impl.hpp
  *         instance of the ionization model functor
  */
-template<class ParBoxIons, class ParBoxElectrons, class Mapping, class FrameIonizer>
-__global__ void kernelIonizeParticles(ParBoxIons ionBox,
+template<class ParBoxIons, class ParBoxElectrons, class Mapping, class FrameIonizer, typename T_Acc>
+DINLINE void operator()(const T_Acc& acc,
+                                      ParBoxIons ionBox,
                                       ParBoxElectrons electronBox,
                                       FrameIonizer frameIonizer,
-                                      Mapping mapper)
+                                      Mapping mapper) const
 {
 
     /* "particle box" : container/iterator where the particles live in
@@ -115,9 +119,9 @@ __global__ void kernelIonizeParticles(ParBoxIons ionBox,
     typedef typename particles::ionization::WriteElectronIntoFrame WriteElectronIntoFrame;
 
 
-    __shared__ typename PMacc::traits::GetEmptyDefaultConstructibleType<IonFramePtr>::type ionFrame;
-    __shared__ typename PMacc::traits::GetEmptyDefaultConstructibleType<ElectronFramePtr>::type electronFrame;
-    __shared__ lcellId_t maxParticlesInFrame;
+    sharedMem(ionFrame, typename PMacc::traits::GetEmptyDefaultConstructibleType<IonFramePtr>::type);
+    sharedMem(electronFrame, typename PMacc::traits::GetEmptyDefaultConstructibleType<ElectronFramePtr>::type);
+    sharedMem(maxParticlesInFrame, lcellId_t);
 
 
     /* find last frame in super cell
@@ -139,7 +143,7 @@ __global__ void kernelIonizeParticles(ParBoxIons ionBox,
     /* Declare counter in shared memory that will later tell the current fill level or
      * occupation of the newly created target electron frames.
      */
-    __shared__ int newFrameFillLvl;
+    sharedMem(newFrameFillLvl, int);
 
     /* Declare local variable oldFrameFillLvl for each thread */
     int oldFrameFillLvl;
@@ -209,7 +213,7 @@ __global__ void kernelIonizeParticles(ParBoxIons ionBox,
              * - then sync
              */
             if (newMacroElectrons > 0)
-                electronId = nvidia::atomicAllInc(&newFrameFillLvl);
+                electronId = nvidia::atomicAllInc(acc,&newFrameFillLvl);
 
             __syncthreads();
             /* < EXIT? >
@@ -228,7 +232,7 @@ __global__ void kernelIonizeParticles(ParBoxIons ionBox,
                 if (!electronFrame.isValid())
                 {
                     electronFrame = electronBox.getEmptyFrame();
-                    electronBox.setAsLastFrame(electronFrame, block);
+                    electronBox.setAsLastFrame(acc, electronFrame, block);
                 }
             }
             __syncthreads();
@@ -264,7 +268,7 @@ __global__ void kernelIonizeParticles(ParBoxIons ionBox,
                 if (newFrameFillLvl >= maxParticlesInFrame)
                 {
                     electronFrame = electronBox.getEmptyFrame();
-                    electronBox.setAsLastFrame(electronFrame, block);
+                    electronBox.setAsLastFrame(acc, electronFrame, block);
                     newFrameFillLvl -= maxParticlesInFrame;
                 }
             }
@@ -304,6 +308,7 @@ __global__ void kernelIonizeParticles(ParBoxIons ionBox,
         __syncthreads();
     }
 } // void kernelIonizeParticles
+};
 
 } // namespace ionization
 } // namespace particles

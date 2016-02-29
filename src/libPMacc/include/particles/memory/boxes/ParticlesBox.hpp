@@ -22,8 +22,9 @@
  */
 
 #pragma once
-
+#if (PMACC_CUDA_ENABLED == 1)
 #include <mallocMC/mallocMC.hpp>
+#endif
 #include "particles/frame_types.hpp"
 #include "dimensions/DataSpace.hpp"
 #include "particles/memory/dataTypes/SuperCell.hpp"
@@ -86,14 +87,20 @@ public:
         const int maxTries = 13; //magic number is not performance critical
         for ( int numTries = 0; numTries < maxTries; ++numTries )
         {
+#if (PMACC_CUDA_ENABLED == 1) && defined(__CUDA_ARCH__)
             tmp = (FrameType*) mallocMC::malloc( sizeof (FrameType) );
+#else
+            tmp = (FrameType*) malloc( sizeof (FrameType) );
+#endif
             if ( tmp != NULL )
             {
                 /* disable all particles since we can not assume that newly allocated memory contains zeros */
                 for ( int i = 0; i < (int) math::CT::volume<typename FrameType::SuperCellSize>::type::value; ++i )
                     ( *tmp )[i][multiMask_] = 0;
                 /* takes care that changed values are visible to all threads inside this block*/
+#if (PMACC_CUDA_ENABLED == 1) && defined(__CUDA_ARCH__)
                 __threadfence_block( );
+#endif
                 break;
             }
             else
@@ -116,14 +123,18 @@ public:
     template<typename T_InitMethod>
     DINLINE void removeFrame( FramePointer<FrameType, T_InitMethod>& frame )
     {
+#if (PMACC_CUDA_ENABLED == 1) && defined(__CUDA_ARCH__)
         mallocMC::free( (void*) frame.ptr );
+#else
+        free( (void*) frame.ptr );
+#endif
         frame.ptr = NULL;
     }
 
     HDINLINE
     FramePtr mapPtr( const FramePtr& devPtr )
     {
-#ifndef __CUDA_ARCH__
+#if !defined(__CUDA_ARCH__) && (PMACC_CUDA_ENABLED == 1)
         int64_t useOffset = hostMemoryOffset * static_cast<int64_t> (devPtr.ptr != 0);
         return FramePtr( reinterpret_cast<FrameType*> (
                                                        reinterpret_cast<char*> (devPtr.ptr) - useOffset
@@ -184,8 +195,8 @@ public:
      * @param frame frame to set as first frame
      * @param idx position of supercell
      */
-    template<typename T_InitMethod>
-    DINLINE void setAsFirstFrame( FramePointer<FrameType, T_InitMethod>& frame, const DataSpace<DIM> &idx )
+    template<typename T_Acc, typename T_InitMethod>
+    DINLINE void setAsFirstFrame( const T_Acc& acc, FramePointer<FrameType, T_InitMethod>& frame, const DataSpace<DIM> &idx )
     {
         FrameType** firstFrameNativPtr = &(getSuperCell( idx ).firstFramePtr);
 
@@ -196,7 +207,9 @@ public:
          * - this is needed because later on in this method we change `previous`
          *   of an other frame, this must be done in order!
          */
+#if (PMACC_CUDA_ENABLED == 1) && defined(__CUDA_ARCH__)
         __threadfence( );
+#endif
 
         FramePtr oldFirstFramePtr(
             (FrameType*) atomicExch(
@@ -223,8 +236,8 @@ public:
      * @param frame frame to set as last frame
      * @param idx position of supercell
      */
-    template<typename T_InitMethod>
-    DINLINE void setAsLastFrame( FramePointer<FrameType, T_InitMethod>& frame, const DataSpace<DIM> &idx )
+    template<typename T_Acc, typename T_InitMethod>
+    DINLINE void setAsLastFrame( const T_Acc& acc, FramePointer<FrameType, T_InitMethod>& frame, const DataSpace<DIM> &idx )
     {
         FrameType** lastFrameNativPtr = &(getSuperCell( idx ).lastFramePtr);
 
@@ -234,8 +247,9 @@ public:
          * - this is needed because later on in this method we change `next`
          *   of an other frame, this must be done in order!
          */
+#if (PMACC_CUDA_ENABLED == 1) && defined(__CUDA_ARCH__)
         __threadfence( );
-
+#endif
         FramePtr oldLastFramePtr(
             (FrameType*) atomicExch(
                 (unsigned long long int*) lastFrameNativPtr,

@@ -25,10 +25,11 @@
 #include "pmacc_types.hpp"
 #include "simulation_defines.hpp"
 #include "dimensions/DataSpace.hpp"
-#include "basicOperations.hpp"
 #include "math/Vector.hpp"
 #include "traits/IsSameType.hpp"
 #include "particles/shapes/CIC.hpp"
+
+#include <algorithm>
 
 namespace picongpu
 {
@@ -39,8 +40,9 @@ using namespace PMacc;
 template<typename T_ParticleShape>
 struct VillaBune
 {
-    template<class BoxJ, typename PosType, typename VelType, typename ChargeType >
-    DINLINE void operator()(BoxJ& boxJ_par, /*box which is shifted to particles cell*/
+    template<class BoxJ, typename PosType, typename VelType, typename ChargeType, typename T_Acc >
+    DINLINE void operator()(const T_Acc& acc,
+                            BoxJ& boxJ_par, /*box which is shifted to particles cell*/
                             const PosType pos,
                             const VelType velocity,
                             const ChargeType charge, const float_X deltaTime)
@@ -60,31 +62,31 @@ struct VillaBune
 
         const PosType oldPos = (PosType) (precisionCast<float_X > (pos) - deltaPos);
 
-        addCurrentSplitX(oldPos, pos, charge, boxJ_par, deltaTime);
+        addCurrentSplitX(acc, oldPos, pos, charge, boxJ_par, deltaTime);
     }
 
 private:
     //Splits the [oldPos,newPos] beam into two beams at the x-boundary of the cell
     //if necessary
 
-    template<class Buffer >
-    DINLINE void addCurrentSplitX(const float3_X& oldPos, const float3_X& newPos,
+    template<class Buffer, typename T_Acc >
+    DINLINE void addCurrentSplitX(const T_Acc& acc, const float3_X& oldPos, const float3_X& newPos,
                                   const float_X charge, Buffer & mem, const float_X deltaTime)
     {
 
         if (math::float2int_rd(oldPos.x()) != math::float2int_rd(newPos.x()))
         {
             const float3_X interPos = intersectXPlane(oldPos, newPos,
-                                                      max(math::float2int_rd(oldPos.x()), math::float2int_rd(newPos.x())));
-            addCurrentSplitY(oldPos, interPos, charge, mem, deltaTime);
-            addCurrentSplitY(interPos, newPos, charge, mem, deltaTime);
+                                                      std::max(math::float2int_rd(oldPos.x()), math::float2int_rd(newPos.x())));
+            addCurrentSplitY(acc, oldPos, interPos, charge, mem, deltaTime);
+            addCurrentSplitY(acc, interPos, newPos, charge, mem, deltaTime);
             return;
         }
         addCurrentSplitY(oldPos, newPos, charge, mem, deltaTime);
     }
 
-    template<class Buffer >
-    DINLINE void addCurrentToSingleCell(float3_X meanPos, const float3_X& deltaPos,
+    template<class Buffer, typename T_Acc >
+    DINLINE void addCurrentToSingleCell(const T_Acc& acc, float3_X meanPos, const float3_X& deltaPos,
                                         const float_X charge, Buffer & memIn, const float_X deltaTime)
     {
         //shift to the cell meanPos belongs to
@@ -132,20 +134,20 @@ private:
         const float_X rho_dtY = charge * (float_X(1.0) / (CELL_WIDTH * CELL_DEPTH * deltaTime));
         const float_X rho_dtZ = charge * (float_X(1.0) / (CELL_WIDTH * CELL_HEIGHT * deltaTime));
 
-        atomicAddWrapper(&(mem[1][1][0].x()), rho_dtX * (deltaPos.x() * meanPos.y() * meanPos.z() + tmp));
-        atomicAddWrapper(&(mem[1][0][0].x()), rho_dtX * (deltaPos.x() * (float_X(1.0) - meanPos.y()) * meanPos.z() - tmp));
-        atomicAddWrapper(&(mem[0][1][0].x()), rho_dtX * (deltaPos.x() * meanPos.y() * (float_X(1.0) - meanPos.z()) - tmp));
-        atomicAddWrapper(&(mem[0][0][0].x()), rho_dtX * (deltaPos.x() * (float_X(1.0) - meanPos.y()) * (float_X(1.0) - meanPos.z()) + tmp));
+        atomicAdd(&(mem[1][1][0].x()), rho_dtX * (deltaPos.x() * meanPos.y() * meanPos.z() + tmp));
+        atomicAdd(&(mem[1][0][0].x()), rho_dtX * (deltaPos.x() * (float_X(1.0) - meanPos.y()) * meanPos.z() - tmp));
+        atomicAdd(&(mem[0][1][0].x()), rho_dtX * (deltaPos.x() * meanPos.y() * (float_X(1.0) - meanPos.z()) - tmp));
+        atomicAdd(&(mem[0][0][0].x()), rho_dtX * (deltaPos.x() * (float_X(1.0) - meanPos.y()) * (float_X(1.0) - meanPos.z()) + tmp));
 
-        atomicAddWrapper(&(mem[1][0][1].y()), rho_dtY * (deltaPos.y() * meanPos.z() * meanPos.x() + tmp));
-        atomicAddWrapper(&(mem[0][0][1].y()), rho_dtY * (deltaPos.y() * (float_X(1.0) - meanPos.z()) * meanPos.x() - tmp));
-        atomicAddWrapper(&(mem[1][0][0].y()), rho_dtY * (deltaPos.y() * meanPos.z() * (float_X(1.0) - meanPos.x()) - tmp));
-        atomicAddWrapper(&(mem[0][0][0].y()), rho_dtY * (deltaPos.y() * (float_X(1.0) - meanPos.z()) * (float_X(1.0) - meanPos.x()) + tmp));
+        atomicAdd(&(mem[1][0][1].y()), rho_dtY * (deltaPos.y() * meanPos.z() * meanPos.x() + tmp));
+        atomicAdd(&(mem[0][0][1].y()), rho_dtY * (deltaPos.y() * (float_X(1.0) - meanPos.z()) * meanPos.x() - tmp));
+        atomicAdd(&(mem[1][0][0].y()), rho_dtY * (deltaPos.y() * meanPos.z() * (float_X(1.0) - meanPos.x()) - tmp));
+        atomicAdd(&(mem[0][0][0].y()), rho_dtY * (deltaPos.y() * (float_X(1.0) - meanPos.z()) * (float_X(1.0) - meanPos.x()) + tmp));
 
-        atomicAddWrapper(&(mem[0][1][1].z()), rho_dtZ * (deltaPos.z() * meanPos.x() * meanPos.y() + tmp));
-        atomicAddWrapper(&(mem[0][1][0].z()), rho_dtZ * (deltaPos.z() * (float_X(1.0) - meanPos.x()) * meanPos.y() - tmp));
-        atomicAddWrapper(&(mem[0][0][1].z()), rho_dtZ * (deltaPos.z() * meanPos.x() * (float_X(1.0) - meanPos.y()) - tmp));
-        atomicAddWrapper(&(mem[0][0][0].z()), rho_dtZ * (deltaPos.z() * (float_X(1.0) - meanPos.x()) * (float_X(1.0) - meanPos.y()) + tmp));
+        atomicAdd(&(mem[0][1][1].z()), rho_dtZ * (deltaPos.z() * meanPos.x() * meanPos.y() + tmp));
+        atomicAdd(&(mem[0][1][0].z()), rho_dtZ * (deltaPos.z() * (float_X(1.0) - meanPos.x()) * meanPos.y() - tmp));
+        atomicAdd(&(mem[0][0][1].z()), rho_dtZ * (deltaPos.z() * meanPos.x() * (float_X(1.0) - meanPos.y()) - tmp));
+        atomicAdd(&(mem[0][0][0].z()), rho_dtZ * (deltaPos.z() * (float_X(1.0) - meanPos.x()) * (float_X(1.0) - meanPos.y()) + tmp));
 
     }
 
@@ -175,46 +177,46 @@ private:
     //Splits the [oldPos,newPos] beam into two beams at the z-boundary of the cell
     //if necessary
 
-    template<class Buffer >
-    DINLINE void addCurrentSplitZ(const float3_X &oldPos, const float3_X &newPos,
+    template<class Buffer, typename T_Acc >
+    DINLINE void addCurrentSplitZ(const T_Acc& acc, const float3_X &oldPos, const float3_X &newPos,
                                   const float_X charge, Buffer & mem, const float_X deltaTime)
     {
 
         if (math::float2int_rd(oldPos.z()) != math::float2int_rd(newPos.z()))
         {
             const float3_X interPos = intersectZPlane(oldPos, newPos,
-                                                      max(math::float2int_rd(oldPos.z()), math::float2int_rd(newPos.z())));
+                                                      std::max(math::float2int_rd(oldPos.z()), math::float2int_rd(newPos.z())));
             float3_X deltaPos = interPos - oldPos;
             float3_X meanPos = oldPos + float_X(0.5) * deltaPos;
-            addCurrentToSingleCell(meanPos, deltaPos, charge, mem, deltaTime);
+            addCurrentToSingleCell(acc, meanPos, deltaPos, charge, mem, deltaTime);
 
             deltaPos = newPos - interPos;
             meanPos = interPos + float_X(0.5) * deltaPos;
-            addCurrentToSingleCell(meanPos, deltaPos, charge, mem, deltaTime);
+            addCurrentToSingleCell(acc, meanPos, deltaPos, charge, mem, deltaTime);
             return;
         }
         const float3_X deltaPos = newPos - oldPos;
         const float3_X meanPos = oldPos + float_X(0.5) * deltaPos;
-        addCurrentToSingleCell(meanPos, deltaPos, charge, mem, deltaTime);
+        addCurrentToSingleCell(acc, meanPos, deltaPos, charge, mem, deltaTime);
     }
 
     //Splits the [oldPos,newPos] beam into two beams at the y-boundary of the cell
     //if necessary
 
-    template<class Buffer >
-    DINLINE void addCurrentSplitY(const float3_X& oldPos, const float3_X& newPos,
+    template<class Buffer, typename T_Acc >
+    DINLINE void addCurrentSplitY(const T_Acc& acc, const float3_X& oldPos, const float3_X& newPos,
                                   const float_X charge, Buffer & mem, const float_X deltaTime)
     {
 
         if (math::float2int_rd(oldPos.y()) != math::float2int_rd(newPos.y()))
         {
             const float3_X interPos = intersectYPlane(oldPos, newPos,
-                                                      max(math::float2int_rd(oldPos.y()), math::float2int_rd(newPos.y())));
-            addCurrentSplitZ(oldPos, interPos, charge, mem, deltaTime);
-            addCurrentSplitZ(interPos, newPos, charge, mem, deltaTime);
+                                                      std::max(math::float2int_rd(oldPos.y()), math::float2int_rd(newPos.y())));
+            addCurrentSplitZ(acc, oldPos, interPos, charge, mem, deltaTime);
+            addCurrentSplitZ(acc, interPos, newPos, charge, mem, deltaTime);
             return;
         }
-        addCurrentSplitZ(oldPos, newPos, charge, mem, deltaTime);
+        addCurrentSplitZ(acc, oldPos, newPos, charge, mem, deltaTime);
     }
 
 };

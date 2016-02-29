@@ -42,10 +42,14 @@ struct SharedMemAllocator<Type, Size, 1, uid>
     BOOST_STATIC_CONSTEXPR int dim = 1;
     typedef cursor::CT::BufferCursor<type, math::CT::UInt32<> > Cursor;
 
-    __device__ static Cursor allocate()
+    template< typename T_Acc >
+    DINLINE static Cursor allocate( const T_Acc& acc )
     {
-        __shared__ Type shMem[Size::x::value];
-        return Cursor((Type*)shMem);
+        auto& shMem = ::alpaka::block::shared::st::allocVar<
+            cupla::Array<Type,Size::x::value>,
+            uid
+        >(acc);
+        return Cursor(&shMem[0]);
     }
 };
 
@@ -57,10 +61,14 @@ struct SharedMemAllocator<Type, Size, 2, uid>
     BOOST_STATIC_CONSTEXPR int dim = 2;
     typedef cursor::CT::BufferCursor<type, Pitch> Cursor;
 
-    __device__ static Cursor allocate()
+    template< typename T_Acc >
+    DINLINE static Cursor allocate( const T_Acc& acc )
     {
-        __shared__ Type shMem[Size::x::value][Size::y::value];
-        return Cursor((Type*)shMem);
+        auto& shMem = ::alpaka::block::shared::st::allocVar<
+            cupla::Array<cupla::Array<Type,Size::x::value>,Size::y::value>,
+            uid
+        >(acc);
+        return Cursor(&shMem[0][0]);
     }
 };
 
@@ -73,10 +81,14 @@ struct SharedMemAllocator<Type, Size, 3, uid>
     BOOST_STATIC_CONSTEXPR int dim = 3;
     typedef cursor::CT::BufferCursor<type, Pitch> Cursor;
 
-    __device__ static Cursor allocate()
+    template< typename T_Acc >
+    DINLINE static Cursor allocate( const T_Acc& acc )
     {
-        __shared__ Type shMem[Size::x::value][Size::y::value][Size::z::value];
-        return Cursor((Type*)shMem);
+        auto& shMem = ::alpaka::block::shared::st::allocVar<
+            cupla::Array<cupla::Array<cupla::Array<Type,Size::x::value>,Size::y::value>,Size::z::value>,
+            uid
+        >(acc);
+        return Cursor(&shMem[0][0][0]);
     }
 };
 

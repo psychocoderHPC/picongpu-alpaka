@@ -147,6 +147,7 @@ public:
              * for the checkpoint writing */
             CUDA_CHECK(cudaDeviceSynchronize());
             CUDA_CHECK(cudaGetLastError());
+            Environment<>::get().Manager().waitForAllTasks();
 
             GridController<DIM> &gc = Environment<DIM>::get().GridController();
             /* can be spared for better scalings, but allows to spare the
@@ -166,6 +167,7 @@ public:
              * point guarantees that a checkpoint is usable */
             CUDA_CHECK(cudaDeviceSynchronize());
             CUDA_CHECK(cudaGetLastError());
+            Environment<>::get().Manager().waitForAllTasks();
 
             /* \todo in an ideal world with MPI-3, this would be an
              * MPI_Ibarrier call and this function would return a MPI_Request

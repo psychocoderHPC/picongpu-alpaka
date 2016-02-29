@@ -49,19 +49,23 @@ using namespace PMacc;
 
 namespace po = boost::program_options;
 
+
+struct kernelEnergyParticles
+{
 /** This kernel computes the kinetic and total energy summed over
  *  all particles of a species.
  **/
-template<class ParBox, class DBox, class Mapping>
-__global__ void kernelEnergyParticles(ParBox pb,
+template<class ParBox, class DBox, class Mapping, typename T_Acc>
+DINLINE void operator()(const T_Acc& acc,
+                                      ParBox pb,
                                       DBox gEnergy,
-                                      Mapping mapper)
+                                      Mapping mapper) const
 {
 
     typedef typename ParBox::FramePtr FramePtr;
-    __shared__ typename PMacc::traits::GetEmptyDefaultConstructibleType<FramePtr>::type frame; /* pointer to particle data frame */
-    __shared__ float_X shEnergyKin; /* shared kinetic energy */
-    __shared__ float_X shEnergy; /* shared total energy */
+    sharedMem(frame, typename PMacc::traits::GetEmptyDefaultConstructibleType<FramePtr>::type); /* pointer to particle data frame */
+    sharedMem(shEnergyKin, float_X); /* shared kinetic energy */
+    sharedMem(shEnergy, float_X); /* shared total energy */
 
     float_X _local_energyKin = float_X(0.0); /* sum kinetic energy for this thread */
     float_X _local_energy = float_X(0.0); /* sum total energy for this thread */
@@ -140,18 +144,19 @@ __global__ void kernelEnergyParticles(ParBox pb,
     }
 
     /* add energies on block level using shared memory */
-    atomicAddWrapper(&shEnergyKin, _local_energyKin); /* add kinetic energy */
-    atomicAddWrapper(&shEnergy, _local_energy);       /* add total energy */
+    atomicAdd(&shEnergyKin, _local_energyKin); /* add kinetic energy */
+    atomicAdd(&shEnergy, _local_energy);       /* add total energy */
 
     __syncthreads(); /* wait till all threads have added their energies */
 
     /* add energies on global level using global memory */
     if (linearThreadIdx == 0) /* only done by thread 0 of a block */
     {
-        atomicAddWrapper(&(gEnergy[0]), (float_64) (shEnergyKin)); /* add kinetic energy */
-        atomicAddWrapper(&(gEnergy[1]), (float_64) (shEnergy));    /* add total energy */
+        atomicAdd(&(gEnergy[0]), (float_64) (shEnergyKin)); /* add kinetic energy */
+        atomicAdd(&(gEnergy[1]), (float_64) (shEnergy));    /* add total energy */
     }
 }
+};
 
 template<class ParticlesType>
 class EnergyParticles : public ISimulationPlugin
@@ -314,7 +319,7 @@ private:
         dim3 block(MappingDesc::SuperCellSize::toRT().toDim3()); /* GPU parallelization */
 
         /* kernel call = sum all particle energies on GPU */
-        __picKernelArea(kernelEnergyParticles, *cellDescription, AREA)
+        __picKernelArea(kernelEnergyParticles)( *cellDescription, AREA)
             (block)
             (particles->getDeviceParticlesBox(),
              gEnergy->getDeviceBuffer().getDataBox());

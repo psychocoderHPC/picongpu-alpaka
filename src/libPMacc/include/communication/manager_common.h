@@ -37,3 +37,4 @@ enum {
 };
 
 #define MPI_CHECK(cmd) {int error = cmd; if(error!=MPI_SUCCESS){std::cerr << "<" << __FILE__ << ">:" << __LINE__; throw std::runtime_error(std::string("[MPI] Error"));}}
+#define MPI_CHECK_BLOCKING(cmd) PMacc::Environment<>::get().TransactionManager().getTransactionEvent().waitForFinished(); MPI_CHECK(cmd)
