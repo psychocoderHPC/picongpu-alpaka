@@ -89,9 +89,9 @@ fieldB( NULL )
         GetMargin<fieldSolver::FieldSolver, FIELD_E>::UpperMargin
         >::type UpperMarginInterpolationAndSolver;
 
-    /* Calculate upper and lower margin for pusher 
-       (currently all pusher use the interpolation of the species)  
-       and find maximum margin 
+    /* Calculate upper and lower margin for pusher
+       (currently all pusher use the interpolation of the species)
+       and find maximum margin
     */
     typedef typename PMacc::particles::traits::FilterByFlag
     <
@@ -201,10 +201,27 @@ void FieldE::laserManipulation( uint32_t currentStep )
     gridBlocks.y()=fieldE->getGridLayout( ).getDataSpaceWithoutGuarding( ).z( ) / SuperCellSize::z::value;
     blockSize.y()=SuperCellSize::z::value;
 #endif
-    __cudaKernel( kernelLaserE )
-        ( gridBlocks,
-          blockSize )
-        ( this->getDeviceDataBox( ), laser->getLaserManipulator( currentStep ) );
+    constexpr bool useElements = !cupla::OptimizeBlockElem<cupla::AccFast>::isIdentity;
+    if(useElements)
+    {
+        __cudaKernel_ELEM( kernelLaserE<SuperCellSize> )
+            (
+                gridBlocks,
+                1,
+                blockSize
+            )
+            ( this->getDeviceDataBox( ), laser->getLaserManipulator( currentStep ) );
+    }
+    else
+    {
+        __cudaKernel_ELEM( kernelLaserE<typename PMacc::math::CT::make_Int<simDim,1>::type> )
+            (
+                gridBlocks,
+                blockSize,
+                1
+            )
+            ( this->getDeviceDataBox( ), laser->getLaserManipulator( currentStep ) );
+    }
 }
 
 void FieldE::reset( uint32_t )

@@ -29,28 +29,25 @@
 
 #include "memory/boxes/CachedBox.hpp"
 
-#include "nvidia/functors/Assign.hpp"
-#include "mappings/threads/ThreadCollective.hpp"
+#include "mappings/elements/Vectorize.hpp"
 
 namespace picongpu
 {
 using namespace PMacc;
 
+template< typename T_ElemSize >
 struct kernelLaserE
 {
 template<class EBox, typename T_Acc>
 DINLINE void operator()(const T_Acc& acc, EBox fieldE, LaserManipulator lMan) const
 {
     DataSpace<simDim> cellOffset;
+    const DataSpace<simDim> guardSize(MappingDesc::SuperCellSize::toRT() * GUARD_SIZE);
 
-    cellOffset.x() = (blockIdx.x * blockDim.x) + threadIdx.x;
-    DataSpace<simDim> EFieldOffset;
-    EFieldOffset.x() = cellOffset.x() + (MappingDesc::SuperCellSize::x::value * GUARD_SIZE);
-    EFieldOffset.y() = MappingDesc::SuperCellSize::y::value*GUARD_SIZE;
+    cellOffset.x() = (blockIdx.x * MappingDesc::SuperCellSize::x::value) + (threadIdx.x * T_ElemSize::x::value);
 
 #if (SIMDIM==DIM3)
-    cellOffset.z() = (blockIdx.y * blockDim.y) + threadIdx.y;
-    EFieldOffset.z() = cellOffset.z() + (MappingDesc::SuperCellSize::z::value * GUARD_SIZE);
+    cellOffset.z() = (blockIdx.y * MappingDesc::SuperCellSize::z::value) + (threadIdx.y * T_ElemSize::z::value);
 #endif
 
     //uint32_t zOffset
@@ -77,16 +74,27 @@ DINLINE void operator()(const T_Acc& acc, EBox fieldE, LaserManipulator lMan) co
     //const int max_y_neighbors = Get<fieldSolver::FieldSolver::OffsetOrigin_E, 1 >::value;
     const int max_y_neighbors = 1;
 
-    for (int totalOffsetY = 0; totalOffsetY < max_y_neighbors; ++totalOffsetY)
-    {
-        /** \todo Right now, the phase could be wrong ( == is cloned)
-         *        \See LaserPhysics.hpp
-         *
-         *  \todo What about the B-Field in the second plane?
-         */
-        cellOffset.y()=totalOffsetY;
-        fieldE(EFieldOffset) = lMan.getManipulation(cellOffset);
-    }
+    namespace mapElem = mappings::elements;
+
+    mapElem::vectorize<simDim>(
+        [&]( const DataSpace<simDim>& idx )
+        {
+            for (int totalOffsetY = 0; totalOffsetY < max_y_neighbors; ++totalOffsetY)
+            {
+                /** \todo Right now, the phase could be wrong ( == is cloned)
+                 *        \See LaserPhysics.hpp
+                 *
+                 *  \todo What about the B-Field in the second plane?
+                 */
+                DataSpace<simDim> dataCellOffset(cellOffset + idx);
+                dataCellOffset.y()=totalOffsetY;
+                fieldE(dataCellOffset + guardSize) = lMan.getManipulation(dataCellOffset);
+            }
+        },
+        T_ElemSize::toRT(),
+        mapElem::Contiguous()
+    );
+
 }
 };
 }
