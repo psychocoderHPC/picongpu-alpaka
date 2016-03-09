@@ -28,71 +28,73 @@
 #include "simulation_classTypes.hpp"
 #include "nvidia/atomic.hpp"
 
+#include "mappings/elements/Vectorize.hpp"
+
 namespace picongpu
 {
 
 using namespace PMacc;
 
-template<int pos, class BoxedMemory, class Mapping, typename T_Acc>
+template<typename T_ElemSize, int pos, class BoxedMemory, class Mapping, typename T_Acc>
 DINLINE void absorb(const T_Acc& acc, BoxedMemory field, uint32_t thickness, float_X absorber_strength, Mapping mapper, const DataSpace<simDim> &direction)
 {
     typedef typename MappingDesc::SuperCellSize SuperCellSize;
     const DataSpace<simDim> superCellIdx(mapper.getSuperCellIndex(DataSpace<simDim > (blockIdx)));
 
 
-    const DataSpace<simDim > threadIndex(threadIdx);
-    const int linearThreadIdx = DataSpaceOperations<simDim>::template map<SuperCellSize > (threadIndex);
+    const DataSpace<simDim > threadOffset( DataSpace<simDim>(threadIdx) * T_ElemSize::toRT() );
 
-    DataSpace<simDim> cell(superCellIdx * SuperCellSize::toRT() + threadIndex);
+    DataSpace<simDim> originCell(superCellIdx * SuperCellSize::toRT() + threadOffset );
     //cells in simulation
     const DataSpace<simDim> gCells = mapper.getGridSuperCells() * SuperCellSize::toRT();
-
-    sharedMem(finish, int);
 
 
     float_X factor = float_X(0.0);
 
-    do
-    {
-        cell[pos] = cell[pos] + (MappingDesc::SuperCellSize::toRT()[pos]*(direction[pos]*-1));
-        if (linearThreadIdx == 0)
-            finish = 0;
-        __syncthreads();
 
-        if (direction[pos] != 0)
+    namespace mapElem = mappings::elements;
+
+    mapElem::vectorize<simDim>(
+        [&]( const DataSpace<simDim>& idx )
         {
-            if (direction[pos] < 0)
+            for(int i = 0; (i + threadOffset[pos] + idx[pos]) < thickness; i += MappingDesc::SuperCellSize::toRT()[pos])
             {
-                factor = (float_32) (MappingDesc::SuperCellSize::toRT()[pos] + thickness - cell[pos] - 1);
+
+                DataSpace<simDim> cell(originCell + idx);
+                cell[pos] += ( i * direction[ pos ] * -1 );
+
+                if (direction[pos] != 0)
+                {
+                    if (direction[pos] < 0)
+                    {
+                        factor = (float_X) (MappingDesc::SuperCellSize::toRT()[pos] + thickness - cell[pos] - 1);
+                    }
+                    else
+                    {
+                        factor = (float_X) ((MappingDesc::SuperCellSize::toRT()[pos] + cell[pos]) - gCells[pos] + thickness);
+                    }
+                }
+                if (factor <= float_X(0.0))
+                {
+                    return;
+                }
+
+                float_X a = math::exp(float_X(-absorber_strength) * (factor));
+
+                float3_X tmp = field(cell);
+                tmp.x() *= a;
+                tmp.y() *= a;
+                tmp.z() *= a;
+                field(cell) *= a;
             }
-            else
-            {
-                factor = (float_32) ((MappingDesc::SuperCellSize::toRT()[pos] + cell[pos]) - gCells[pos] + thickness);
-            }
+        },
+        T_ElemSize::toRT(),
+        mapElem::Contiguous()
+    );
 
-        }
-
-        if (factor <= float_X(0.0))
-        {
-            factor = float_X(0.0);
-            nvidia::atomicAllExch(acc, &finish,1);
-        }
-        else
-        {
-            float_X a = math::exp(float_X(-absorber_strength) * (factor));
-
-            float3_X tmp = field(cell);
-            tmp.x() *= a;
-            tmp.y() *= a;
-            tmp.z() *= a;
-            field(cell) = tmp;
-        }
-        //  cell =cell+ MappingDesc::SuperCellSize::toRT()*(pos*-1);
-        __syncthreads();
-    }
-    while (finish == 0);
 }
 
+template< typename T_ElemSize >
 struct kernelAbsorbBorder
 {
 template<class BoxedMemory, class Mapping, typename T_Acc>
@@ -103,12 +105,12 @@ DINLINE void operator()(const T_Acc& acc, BoxedMemory field, uint32_t thickness,
 
     //this is a workaround that we get a kernelwithout lmem
     if (direction.x() != 0)
-        absorb < 0 > (acc, field, thickness, absorber_strength, mapper, direction);
+        absorb < T_ElemSize, 0 > (acc, field, thickness, absorber_strength, mapper, direction);
     else if (direction.y() != 0)
-        absorb < 1 > (acc, field, thickness, absorber_strength, mapper, direction);
+        absorb < T_ElemSize, 1 > (acc, field, thickness, absorber_strength, mapper, direction);
 #if (SDIMDIM==DIM3)
     else if (direction.z() != 0)
-        absorb < 2 > (acc, field, thickness, absorber_strength, mapper, direction);
+        absorb < T_ElemSize, 2 > (acc, field, thickness, absorber_strength, mapper, direction);
 #endif
 }
 };

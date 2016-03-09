@@ -71,6 +71,7 @@
 #include "memory/boxes/DataBoxDim1Access.hpp"
 #include "nvidia/functors/Max.hpp"
 #include "nvidia/atomic.hpp"
+#include "mappings/elements/Vectorize.hpp"
 
 namespace picongpu
 {
@@ -192,17 +193,23 @@ DINLINE void operator()(
                                   Mapping mapper) const
 {
     typedef typename MappingDesc::SuperCellSize Block;
-    const DataSpace<simDim> threadId(threadIdx);
+    const DataSpace<simDim> elemSize(elemDim);
+    const DataSpace<simDim> threadId( DataSpace<simDim>(threadIdx) * elemSize );
     const DataSpace<simDim> block = mapper.getSuperCellIndex(DataSpace<simDim > (blockIdx));
-    const DataSpace<simDim> cell(block * Block::toRT() + threadId);
+    const DataSpace<simDim> originCell(block * Block::toRT() + threadId);
     const DataSpace<simDim> blockOffset((block - mapper.getGuardingSuperCells()) * Block::toRT());
 
+    namespace mapElem = mappings::elements;
 
+    mapElem::vectorize<simDim>(
+        [&]( const DataSpace<simDim>& idx )
+        {
+    const DataSpace<simDim> cell(originCell + idx);
     const DataSpace<simDim> realCell(cell - MappingDesc::SuperCellSize::toRT() * mapper.getGuardingSuperCells()); //delete guard from cell idx
     const DataSpace<DIM2> imageCell(
                                     realCell[transpose.x()],
                                     realCell[transpose.y()]);
-    const DataSpace<simDim> realCell2(blockOffset + threadId); //delete guard from cell idx
+    const DataSpace<simDim> realCell2(blockOffset + threadId + idx); //delete guard from cell idx
 
 #if (SIMDIM==DIM3)
     uint32_t globalCell = realCell2[sliceDim] + globalOffset;
@@ -263,9 +270,14 @@ DINLINE void operator()(
 
     // draw to (perhaps smaller) image cell
     image(imageCell) = pic;
+    },
+    elemSize,
+    mapElem::Contiguous()
+    );
 }
 };
 
+template< typename T_ElemSize >
 struct kernelPaintParticles3D
 {
 template<class ParBox, class Mapping, typename T_Acc>
@@ -281,27 +293,41 @@ operator()(const T_Acc& acc,
 {
     typedef typename ParBox::FramePtr FramePtr;
     typedef typename MappingDesc::SuperCellSize Block;
-    sharedMem(frame, typename PMacc::traits::GetEmptyDefaultConstructibleType<FramePtr>::type);
+    FramePtr frame;
     sharedMem(isValid, bool);
 
-    bool isImageThread = false;
 
-    const DataSpace<simDim> threadId(threadIdx);
+
+    const DataSpace<simDim> threadId( DataSpace<simDim>(threadIdx) * DataSpace<simDim>(elemDim) );
     const DataSpace<DIM2> localCell(threadId[transpose.x()], threadId[transpose.y()]);
     const DataSpace<simDim> block = mapper.getSuperCellIndex(DataSpace<simDim > (blockIdx));
     const DataSpace<simDim> blockOffset((block - 1) * Block::toRT());
 
+    namespace mapElem = mappings::elements;
 
-    int localId = threadIdx.z * Block::x::value * Block::y::value + threadIdx.y * Block::x::value + threadIdx.x;
+    int g_localId = DataSpaceOperations<simDim>::template map<Block>( threadId );
 
 
-    if (localId == 0)
+    if (g_localId == 0)
         isValid = false;
     __syncthreads();
 
-    //\todo: guard size should not be set to (fixed) 1 here
-    const DataSpace<simDim> realCell(blockOffset + threadId); //delete guard from cell idx
 
+        // counter is always DIM2
+    typedef DataBox < PitchedBox< float_X, DIM2 > > SharedMem;
+    sharedMemExtern(shBlock,float_X);
+
+    const DataSpace<simDim> blockSize( DataSpace<simDim>(blockDim) * DataSpace<simDim>(elemDim));
+    SharedMem counter(PitchedBox<float_X, DIM2 > ((float_X*) shBlock,
+                                                  DataSpace<DIM2 > (),
+                                                  blockSize[transpose.x()] * sizeof (float_X)));
+    mapElem::vectorize<simDim>(
+        [&]( const DataSpace<simDim>& idx )
+        {
+
+    //\todo: guard size should not be set to (fixed) 1 here
+    const DataSpace<simDim> realCell(blockOffset + threadId + idx); //delete guard from cell idx
+    bool isImageThread = false;
 #if(SIMDIM==DIM3)
     uint32_t globalCell = realCell[sliceDim] + globalOffset;
 
@@ -311,40 +337,31 @@ operator()(const T_Acc& acc,
         nvidia::atomicAllExch(acc, (int*) &isValid,1); /*WAW Error in cuda-memcheck racecheck*/
         isImageThread = true;
     }
+
+
+    if (isImageThread)
+    {
+        const DataSpace<DIM2> t_idx(idx[transpose.x()], idx[transpose.y()]);
+        counter(localCell + t_idx) = float_X(0.0);
+    }
+        },
+        T_ElemSize::toRT(),
+        mapElem::Contiguous()
+    );
     __syncthreads();
 
     if (!isValid)
         return;
 
-    /*index in image*/
-    DataSpace<DIM2> imageCell(
-                              realCell[transpose.x()],
-                              realCell[transpose.y()]);
-
-
-    // counter is always DIM2
-    typedef DataBox < PitchedBox< float_X, DIM2 > > SharedMem;
-    sharedMemExtern(shBlock,float_X);
-
-    const DataSpace<simDim> blockSize(blockDim);
-    SharedMem counter(PitchedBox<float_X, DIM2 > ((float_X*) shBlock,
-                                                  DataSpace<DIM2 > (),
-                                                  blockSize[transpose.x()] * sizeof (float_X)));
-
-    if (isImageThread)
-    {
-        counter(localCell) = float_X(0.0);
-    }
-
-
-    if (localId == 0)
-    {
-        frame = pb.getFirstFrame(block);
-    }
-    __syncthreads();
+    frame = pb.getFirstFrame(block);
 
     while (frame.isValid()) //move over all Frames
     {
+        mapElem::vectorize<simDim>(
+        [&]( const DataSpace<simDim>& idx )
+        {
+        int localId = DataSpaceOperations<simDim>::template map<Block>( threadId + idx );
+
         PMACC_AUTO(particle, frame[localId]);
         if (particle[multiMask_] == 1)
         {
@@ -360,16 +377,34 @@ operator()(const T_Acc& acc,
                 atomicAdd(&(counter(reducedCell)), particle[weighting_] / particles::TYPICAL_NUM_PARTICLES_PER_MACROPARTICLE);
             }
         }
-        __syncthreads();
+        },
+        T_ElemSize::toRT(),
+        mapElem::Contiguous()
+        );
 
-        if (localId == 0)
-        {
-            frame = pb.getNextFrame(frame);
-        }
-        __syncthreads();
+        frame = pb.getNextFrame(frame);
     }
 
+    __syncthreads();
 
+    mapElem::vectorize<simDim>(
+        [&]( const DataSpace<simDim>& idx )
+        {
+
+    const DataSpace<simDim> realCell(blockOffset + threadId + idx); //delete guard from cell idx
+        /*index in image*/
+    DataSpace<DIM2> imageCell(
+                              realCell[transpose.x()],
+                              realCell[transpose.y()]);
+    bool isImageThread = false;
+#if(SIMDIM==DIM3)
+    uint32_t globalCell = realCell[sliceDim] + globalOffset;
+
+    if (globalCell == slice)
+#endif
+    {
+        isImageThread = true;
+    }
     if (isImageThread)
     {
         /** Note: normally, we would multiply by particles::TYPICAL_NUM_PARTICLES_PER_MACROPARTICLE again.
@@ -378,7 +413,8 @@ operator()(const T_Acc& acc,
          *       particles) and devide by the number of typical macro particles
          *       per cell
          */
-        float_X value = counter(localCell)
+        const DataSpace<DIM2> t_idx(idx[transpose.x()], idx[transpose.y()]);
+        float_X value = counter(localCell + t_idx)
             / float_X(particles::TYPICAL_PARTICLES_PER_CELL); // * particles::TYPICAL_NUM_PARTICLES_PER_MACROPARTICLE;
         if (value > 1.0) value = 1.0;
 
@@ -395,6 +431,10 @@ operator()(const T_Acc& acc,
         if (image(imageCell).z() < float_X(0.0)) image(imageCell).z() = float_X(0.0);
         if (image(imageCell).z() > float_X(1.0)) image(imageCell).z() = float_X(1.0);
     }
+        },
+        T_ElemSize::toRT(),
+        mapElem::Contiguous()
+    );
 }
 };
 
@@ -536,7 +576,7 @@ public:
         typedef MappingDesc::SuperCellSize SuperCellSize;
         assert(cellDescription != NULL);
         //create image fields
-        __picKernelArea(kernelPaintFields)( *cellDescription, CORE + BORDER)
+        __picKernelArea_OPTI(kernelPaintFields)( *cellDescription, CORE + BORDER)
             (SuperCellSize::toRT().toDim3())
             (fieldE->getDeviceDataBox(),
              fieldB->getDeviceDataBox(),
@@ -585,16 +625,31 @@ public:
         // add density color channel
         DataSpace<simDim> blockSize(MappingDesc::SuperCellSize::toRT());
         DataSpace<DIM2> blockSize2D(blockSize[m_transpose.x()], blockSize[m_transpose.y()]);
-
-        //create image particles
-        __picKernelArea(kernelPaintParticles3D)( *cellDescription, CORE + BORDER)
-            (SuperCellSize::toRT().toDim3(), blockSize2D.productOfComponents() * sizeof (float_X))
-            (particles->getDeviceParticlesBox(),
-             img->getDeviceBuffer().getDataBox(),
-             m_transpose,
-             sliceOffset,
-             globalOffset, sliceDim
-             );
+        constexpr bool useElements = !cupla::OptimizeBlockElem<cupla::AccFast>::isIdentity;
+        if(useElements)
+        {
+            //create image particles
+            __picKernelArea_ELEM(kernelPaintParticles3D<SuperCellSize>)( *cellDescription, CORE + BORDER)
+                (1,SuperCellSize::toRT().toDim3(), blockSize2D.productOfComponents() * sizeof (float_X))
+                (particles->getDeviceParticlesBox(),
+                 img->getDeviceBuffer().getDataBox(),
+                 m_transpose,
+                 sliceOffset,
+                 globalOffset, sliceDim
+                 );
+        }
+        else
+        {
+            //create image particles
+            __picKernelArea_ELEM(kernelPaintParticles3D<typename PMacc::math::CT::make_Int<simDim,1>::type>)( *cellDescription, CORE + BORDER)
+                (SuperCellSize::toRT().toDim3(),1, blockSize2D.productOfComponents() * sizeof (float_X))
+                (particles->getDeviceParticlesBox(),
+                 img->getDeviceBuffer().getDataBox(),
+                 m_transpose,
+                 sliceOffset,
+                 globalOffset, sliceDim
+                 );
+        }
 
         // send the RGB image back to host
         img->deviceToHost();

@@ -74,9 +74,19 @@ private:
                 typename CurlB::UpperMargin
                 > BlockArea;
 
-        __picKernelArea(kernelUpdateE<BlockArea, CurlB>)( m_cellDescription, AREA)
-                (SuperCellSize::toRT().toDim3())
+        constexpr bool useElements = !cupla::OptimizeBlockElem<cupla::AccFast>::isIdentity;
+        if(useElements)
+        {
+            __picKernelArea_ELEM(kernelUpdateE<SuperCellSize, BlockArea, CurlB>)( m_cellDescription, AREA)
+                (1, SuperCellSize::toRT().toDim3())
                 (this->fieldE->getDeviceDataBox(), this->fieldB->getDeviceDataBox());
+        }
+        else
+        {
+            __picKernelArea_ELEM(kernelUpdateE<typename PMacc::math::CT::make_Int<simDim,1>::type, BlockArea, CurlB>)( m_cellDescription, AREA)
+                (SuperCellSize::toRT().toDim3(), 1)
+                (this->fieldE->getDeviceDataBox(), this->fieldB->getDeviceDataBox());
+        }
     }
 
     template<uint32_t AREA>
@@ -88,10 +98,21 @@ private:
                 typename CurlE::UpperMargin
                 > BlockArea;
 
-        __picKernelArea(kernelUpdateBHalf<BlockArea, CurlE>)( m_cellDescription, AREA)
-                (SuperCellSize::toRT().toDim3())
-                (this->fieldB->getDeviceDataBox(),
-                this->fieldE->getDeviceDataBox());
+        constexpr bool useElements = !cupla::OptimizeBlockElem<cupla::AccFast>::isIdentity;
+        if(useElements)
+        {
+            __picKernelArea_ELEM(kernelUpdateBHalf<SuperCellSize, BlockArea, CurlE>)( m_cellDescription, AREA)
+                    (1,SuperCellSize::toRT().toDim3())
+                    (this->fieldB->getDeviceDataBox(),
+                    this->fieldE->getDeviceDataBox());
+        }
+        else
+        {
+            __picKernelArea_ELEM(kernelUpdateBHalf<typename PMacc::math::CT::make_Int<simDim,1>::type,BlockArea, CurlE>)( m_cellDescription, AREA)
+                    (SuperCellSize::toRT().toDim3(),1)
+                    (this->fieldB->getDeviceDataBox(),
+                    this->fieldE->getDeviceDataBox());
+        }
     }
 
 public:
