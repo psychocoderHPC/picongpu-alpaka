@@ -84,3 +84,38 @@
     CUDA_CHECK_KERNEL_MSG(cudaDeviceSynchronize(),"Crash before kernel call");          \
     PMacc::TaskKernel *pmacc_taskKernel = PMacc::Environment<>::get().Factory().createTaskKernel(#__VA_ARGS__);     \
     using ThePMaccKernelName = __VA_ARGS__; PMACC_CUDAKERNELCONFIG
+
+/**
+ * Appends kernel arguments to generated code and activates kernel task.
+ *
+ * @param ... parameters to pass to kernel
+ */
+#define PMACC_CUDAPARAMS_ELEM(...)                                                  \
+        CUPLA_KERNEL_ELEM(ThePMaccKernelName)(pmacc_gridSize,pmacc_blockSize,pmacc_elemSize,pmacc_kernelSharedMem,pmacc_kernelStream)(__VA_ARGS__); \
+        PMACC_ACTIVATE_KERNEL                                                  \
+    }   /*this is used if call is EventTask.waitforfinished();*/
+
+/**
+ * Configures block and grid sizes and shared memory for the kernel.
+ *
+ * @param grid sizes of grid on gpu
+ * @param block sizes of block on gpu
+ * @param ... amount of shared memory for the kernel (optional)
+ */
+#define PMACC_CUDAKERNELCONFIG_ELEM(grid,block,elem,...)                             \
+    dim3 pmacc_gridSize = grid;                                                      \
+    dim3 pmacc_blockSize = block;                                                    \
+    dim3 pmacc_elemSize = elem;                                                      \
+    /*we need +0 if VA_ARGS is empty, because we must put in a value*/         \
+    const size_t pmacc_kernelSharedMem = __VA_ARGS__+0;                              \
+    auto pmacc_kernelStream = pmacc_taskKernel->getCudaStream(); PMACC_CUDAPARAMS_ELEM
+
+/**
+ * Calls a CUDA kernel and creates an EventTask which represents the kernel.
+ *
+ * @param kernelname name of the CUDA kernel (can also used with templates etc. myKernel<1>)
+ */
+#define __cudaKernel_ELEM(...) {                                                      \
+    CUDA_CHECK_KERNEL_MSG(cudaDeviceSynchronize(),"Crash before kernel call");          \
+    PMacc::TaskKernel *pmacc_taskKernel = PMacc::Environment<>::get().Factory().createTaskKernel(#__VA_ARGS__);     \
+    using ThePMaccKernelName = __VA_ARGS__; PMACC_CUDAKERNELCONFIG_ELEM

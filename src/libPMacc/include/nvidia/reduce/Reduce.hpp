@@ -27,6 +27,7 @@
 #include "nvidia/functors/Assign.hpp"
 #include "traits/GetValueType.hpp"
 #include "pmacc_types.hpp"
+#include "mappings/elements/Vectorize.hpp"
 #include "memory/buffers/GridBuffer.hpp"
 
 #include <boost/type_traits.hpp>
@@ -50,9 +51,9 @@ namespace PMacc
                                        Dest dest,
                                        Functor func, Functor2 func2) const
                 {
-                    const uint32_t localId = threadIdx.x;
-                    const uint32_t tid = blockIdx.x * blockDim.x + localId;
-                    const uint32_t globalThreadCount = gridDim.x * blockDim.x;
+                    const uint32_t g_localId = threadIdx.x * elemDim.x;
+                    const uint32_t g_tid = blockIdx.x * (blockDim.x * elemDim.x ) + g_localId;
+                    const uint32_t globalThreadCount = gridDim.x * blockDim.x * elemDim.x;
 
                     /* cuda can not handle extern shared memory were the type is
                      * defined by a template
@@ -60,6 +61,14 @@ namespace PMacc
                     sharedMemExtern(s_mem,Type);
                     /* create a pointer with the right type*/
                     //Type* s_mem=(Type*)s_mem_extern;
+
+                    namespace mapElem = mappings::elements;
+
+                    mapElem::vectorize<DIM1>(
+                        [&]( const int idx )
+                        {
+                            const uint32_t tid = g_tid + idx;
+                            const uint32_t localId = g_localId + idx;
 
                     bool isActive = (tid < src_count);
 
@@ -76,25 +85,41 @@ namespace PMacc
                         }
                         s_mem[localId] = r_value;
                     }
+                        },
+                        elemDim.x,
+                        mapElem::Contiguous()
+                    );
                     __syncthreads();
                     /*now reduce shared memory*/
-                    uint32_t chunk_count = blockDim.x;
+                    uint32_t chunk_count = blockDim.x * elemDim.x;
 
                     while (chunk_count != 1)
                     {
+
                         /* Half number of chunks (rounded down) */
                         uint32_t active_threads = chunk_count / 2;
-                        isActive = isActive && !(localId != 0 && localId >= active_threads);
 
                         /* New chunks is half number of chunks rounded up for uneven counts
                          * --> local_tid=0 will reduce the single element for an odd number of values at the end */
                         chunk_count = (chunk_count + 1) / 2;
+                        mapElem::vectorize<DIM1>(
+                            [&]( const int idx )
+                            {
+                                const uint32_t tid = g_tid + idx;
+                                const uint32_t localId = g_localId + idx;
+
+                        bool isActive = (tid < src_count);
+                        isActive = isActive && !(localId != 0 && localId >= active_threads);
                         if(isActive)
                             func(s_mem[localId], s_mem[localId + chunk_count]);
+                            },
+                            elemDim.x,
+                            mapElem::Contiguous()
+                        );
 
                         __syncthreads();
                     }
-                    if (isActive)
+                    if (g_localId==0)
                         func2(dest[blockIdx.x], s_mem[0]);
                 }
                 };

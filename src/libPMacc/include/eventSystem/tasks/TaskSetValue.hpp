@@ -29,6 +29,7 @@
 #include "memory/boxes/DataBox.hpp"
 #include "eventSystem/EventSystem.hpp"
 #include "eventSystem/tasks/StreamTask.hpp"
+#include "mappings/elements/Vectorize.hpp"
 
 #include <boost/type_traits/remove_pointer.hpp>
 #include <boost/type_traits.hpp>
@@ -80,6 +81,7 @@ getValue(T_Type& value)
 
 }
 
+template< size_t T_elemSizeX>
 struct kernelSetValue
 {
 template <typename T_Acc, class DataBox, typename T_ValueType, typename Space>
@@ -87,13 +89,36 @@ DINLINE void operator()(const T_Acc& acc, DataBox data, const T_ValueType value,
 {
     const Space threadIndex(threadIdx);
     const Space blockIndex(blockIdx);
-    const Space gridSize(blockDim);
+    const Space blockDimension(blockDim);
+    const Space elemSize(elemDim);
+    const Space blockSize(blockDimension * elemSize);
 
-    Space idx(gridSize * blockIndex + threadIndex);
+    Space offset(blockSize * blockIndex + (elemSize * threadIndex));
 
-    if (idx.x() >= size.x())
-        return;
-    data(idx) = taskSetValueHelper::getValue(value);
+    namespace mapElem = mappings::elements;
+
+    mapElem::vectorize<DIM1>(
+        [&]( const int i )
+        {
+            Space idx( offset );
+            idx.x() += i;
+            if (idx.x() >= size.x())
+                return;
+            data(idx) = taskSetValueHelper::getValue(value);
+        },
+        T_elemSizeX,
+        mapElem::Contiguous()
+    );
+/*
+    for(int i=0;i<elemSize.x();++i)
+    {
+       Space idx(offset);
+        offset.x() += i;
+        if (idx.x() >= size.x())
+            return;
+        data(idx) = taskSetValueHelper::getValue(value);
+    }
+ */
 }
 };
 
@@ -185,8 +210,20 @@ public:
 
         if(gridSize.x * gridSize.y * gridSize.z != 0 )
         {
-            CUPLA_KERNEL(kernelSetValue)(gridSize, 256, 0, this->getCudaStream())
-                (this->destination->getDataBox(), this->value, area_size);
+            constexpr bool useElements = !cupla::OptimizeBlockElem<cupla::AccFast>::isIdentity;
+            if(useElements)
+            {
+                CUPLA_KERNEL_ELEM(kernelSetValue< 256 >)
+                    (gridSize, 1, 256, 0, this->getCudaStream())
+                    (this->destination->getDataBox(), this->value, area_size);
+            }
+            else
+            {
+                CUPLA_KERNEL_ELEM(kernelSetValue< 1 >)
+                    (gridSize, 256, 1, 0, this->getCudaStream())
+                    (this->destination->getDataBox(), this->value, area_size);
+            }
+
         }
         this->activate();
     }
@@ -239,8 +276,20 @@ public:
             CUDA_CHECK(cudaMemcpyAsync(
                                        devicePtr, valuePointer_host, sizeof (ValueType),
                                        cudaMemcpyHostToDevice, this->getCudaStream()));
-            CUPLA_KERNEL(kernelSetValue)(gridSize, 256, 0, this->getCudaStream() )
+            constexpr bool useElements = !cupla::OptimizeBlockElem<cupla::AccFast>::isIdentity;
+            if(useElements)
+            {
+                CUPLA_KERNEL_ELEM(kernelSetValue< 256 >)
+                (gridSize, 1, 256, 0, this->getCudaStream() )
                 (this->destination->getDataBox(), devicePtr, area_size);
+            }
+            else
+            {
+                CUPLA_KERNEL_ELEM(kernelSetValue< 1 >)
+                (gridSize, 256, 1, 0, this->getCudaStream() )
+                (this->destination->getDataBox(), devicePtr, area_size);
+            }
+
         }
         this->activate();
     }
