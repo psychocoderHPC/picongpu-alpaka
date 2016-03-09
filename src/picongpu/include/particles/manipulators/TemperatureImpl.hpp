@@ -76,7 +76,7 @@ struct TemperatureImpl : private T_ValueFunctor
             const uint32_t cellIdx = DataSpaceOperations<simDim>::map(
                                                                       localCells,
                                                                       localCellIdx );
-            rng = nvrng::create(rngMethods::Xor(seed, cellIdx), rngDistributions::Normal_float());
+            rng = nvrng::create(rngMethods::Xor<T_Acc>(acc, seed, cellIdx), rngDistributions::Normal_float<T_Acc>(acc));
             isInitialized = true;
         }
         if (isParticle)
@@ -121,7 +121,7 @@ struct TemperatureImpl : private T_ValueFunctor
     }
 
 private:
-    typedef PMacc::nvidia::rng::RNG<rngMethods::Xor, rngDistributions::Normal_float> RngType;
+    typedef PMacc::nvidia::rng::RNG<rngMethods::Xor<cupla::Acc>, rngDistributions::Normal_float<cupla::Acc>> RngType;
     RngType rng;
     bool isInitialized;
     uint32_t seed;

@@ -36,19 +36,30 @@ namespace PMacc
 
                 /*Return normally distributed floats with mean 0.0f and standard deviation 1.0f
                  */
+                template< typename T_Acc>
                 class Normal_float
                 {
                 public:
                     typedef float Type;
-
+                private:
+                    using Dist =
+                        decltype(
+                            ::alpaka::rand::distribution::createNormalReal<Type>(
+                                std::declval<T_Acc const &>()));
+                    PMACC_ALIGN(dist, Dist);
+                public:
                     HDINLINE Normal_float()
                     {
                     }
 
-                    template<class RNGState>
-                    DINLINE Type operator()(RNGState* state) const
+                    HDINLINE Normal_float(const T_Acc& acc) : dist(::alpaka::rand::distribution::createNormalReal<Type>(acc))
                     {
-                        return curand_normal(state);
+                    }
+
+                    template<class RNGState>
+                    DINLINE Type operator()(RNGState& state)
+                    {
+                        return dist(state);
                     }
 
                 };

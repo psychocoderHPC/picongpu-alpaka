@@ -49,7 +49,8 @@ struct QuietImpl
     {
     }
 
-    DINLINE void init(const DataSpace<simDim>& totalCellOffset)
+    template<typename T_Acc>
+    DINLINE void init(const T_Acc&, const DataSpace<simDim>& totalCellOffset)
     {
 
     }

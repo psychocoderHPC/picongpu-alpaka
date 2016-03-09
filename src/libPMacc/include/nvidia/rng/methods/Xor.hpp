@@ -34,40 +34,41 @@ namespace rng
 namespace methods
 {
 
+template< typename T_Acc >
 class Xor
 {
+private:
+     using Gen =
+        decltype(
+            ::alpaka::rand::generator::createDefault(
+                std::declval<T_Acc const &>(),
+                std::declval<uint32_t &>(),
+                std::declval<uint32_t &>()));
+    PMACC_ALIGN(gen, Gen);
 public:
-    typedef curandStateXORWOW_t StateType;
-    typedef StateType* StatePtr;
+    typedef Gen StateType;
+    typedef T_Acc Acc;
 
-    HDINLINE Xor()
+    HDINLINE Xor() : gen (0)
     {
     }
 
-    DINLINE Xor(uint32_t seed, uint32_t subsequence = 0, uint32_t offset = 0)
+    DINLINE Xor(const T_Acc& acc, uint32_t seed, uint32_t subsequence = 0)
     {
-        curand_init(seed, subsequence, offset, &state);
+        gen = ::alpaka::rand::generator::createDefault(acc, seed, subsequence);
     }
 
-    HDINLINE Xor(const Xor& other): state(other.state)
+    HDINLINE Xor(const Xor& other): gen(other.gen)
     {
 
     }
 
 protected:
 
-    DINLINE curandStateXORWOW_t* getStatePtr()
+    DINLINE StateType& getState()
     {
-        return &state;
+        return gen;
     }
-
-    DINLINE curandStateXORWOW_t& getState()
-    {
-        return state;
-    }
-
-private:
-    PMACC_ALIGN(state, StateType);
 };
 }
 }
