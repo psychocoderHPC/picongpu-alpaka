@@ -105,7 +105,7 @@ DINLINE void operator()(const T_Acc& acc,
         finished = 1;
     __syncthreads();
 
-    positionFunctor.init(totalGpuCellIdx);
+    positionFunctor.init(acc, totalGpuCellIdx);
     // decrease number of macro particles, if weighting would be too small
     particles::startPosition::MacroParticleCfg makroCfg =
         positionFunctor.mapRealToMacroParticle(realParticlesPerCell);

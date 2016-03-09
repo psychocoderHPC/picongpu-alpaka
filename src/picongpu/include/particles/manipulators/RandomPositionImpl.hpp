@@ -72,7 +72,7 @@ struct RandomPositionImpl
             const uint32_t cellIdx = DataSpaceOperations<simDim>::map(
                                                                       localCells,
                                                                       localCellIdx);
-            rng = nvrng::create(rngMethods::Xor(seed, cellIdx), rngDistributions::Uniform_float());
+            rng = nvrng::create(rngMethods::Xor<T_Acc>(acc, seed, cellIdx), rngDistributions::Uniform_float<T_Acc>(acc));
             isInitialized = true;
         }
         if (isParticle)
@@ -87,7 +87,7 @@ struct RandomPositionImpl
     }
 
 private:
-    typedef PMacc::nvidia::rng::RNG<rngMethods::Xor, rngDistributions::Uniform_float> RngType;
+    typedef PMacc::nvidia::rng::RNG<rngMethods::Xor<cupla::Acc>, rngDistributions::Uniform_float<cupla::Acc> > RngType;
     RngType rng;
     bool isInitialized;
     uint32_t seed;
