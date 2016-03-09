@@ -174,11 +174,14 @@ private:
         {
             throw std::runtime_error("no CUDA capable devices detected");
         }
-        else if (num_gpus < deviceNumber) //check if device can be selected by deviceNumber
+// allow to oversubscribe cpu devices
+#if ( PMACC_CUDA_ENABLED == 1 )
+        else if (num_gpus <= deviceNumber) //check if device can be selected by deviceNumber
         {
             std::cerr << "no CUDA device " << deviceNumber << ", only " << num_gpus << " devices found" << std::endl;
             throw std::runtime_error("CUDA capable devices can't be selected");
         }
+#endif
 
 
         int maxTries = num_gpus;
