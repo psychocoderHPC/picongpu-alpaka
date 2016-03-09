@@ -53,7 +53,7 @@ struct RandomParameter
     BOOST_STATIC_CONSTEXPR uint32_t numParticlesPerCell = TYPICAL_PARTICLES_PER_CELL;
 };
 /* definition of random particle start*/
-//typedef RandomImpl<RandomParameter> Random;
+typedef RandomImpl<RandomParameter> Random;
 
 struct QuietParameter
 {

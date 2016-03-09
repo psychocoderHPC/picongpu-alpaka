@@ -23,4 +23,4 @@
 
 #include "particles/startPosition/IFunctor.hpp"
 #include "particles/startPosition/QuietImpl.hpp"
-//#include "particles/startPosition/RandomImpl.hpp"
+#include "particles/startPosition/RandomImpl.hpp"

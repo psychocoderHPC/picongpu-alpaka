@@ -27,7 +27,9 @@
 #include "nvidia/functors/Assign.hpp"
 #include "memory/boxes/CachedBox.hpp"
 #include "memory/dataTypes/Mask.hpp"
-
+#include "nvidia/rng/RNG.hpp"
+#include "nvidia/rng/methods/Xor.hpp"
+#include "nvidia/rng/distributions/Uniform_float.hpp"
 
 namespace gol
 {
@@ -100,11 +102,14 @@ namespace gol
                     blockCell + threadIndex);
 
             /* get uniform random number from seed  */
-            auto gen(::alpaka::rand::generator::createDefault(acc, seed, cellIdx));
-            auto rng(::alpaka::rand::distribution::createUniformReal<float>(acc));
+            //auto gen(::alpaka::rand::generator::createDefault(acc, seed, cellIdx));
+            //auto rng(::alpaka::rand::distribution::createUniformReal<float>(acc));
+            PMACC_AUTO(rng, nvidia::rng::create(
+                                nvidia::rng::methods::Xor<T_Acc>(acc, seed, cellIdx),
+                                nvidia::rng::distributions::Uniform_float<T_Acc>(acc)));
 
             /* write 1(white) if uniform random number 0<rng<1 is smaller than 'fraction' */
-            buffWrite(blockCell + threadIndex) = (rng(gen) <= fraction);
+            buffWrite(blockCell + threadIndex) = (rng() <= fraction);
         }
         };
     }

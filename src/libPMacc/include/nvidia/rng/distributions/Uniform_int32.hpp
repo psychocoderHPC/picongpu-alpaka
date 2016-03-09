@@ -37,20 +37,33 @@ namespace PMacc
                 /*create a 32Bit random int number
                  * Range: [INT_MIN,INT_MAX]
                  */
+                template< typename T_Acc>
                 class Uniform_int32
                 {
                 public:
                     typedef int32_t Type;
 
+                private:
+                    typedef uint32_t RngType;
+                    using Dist =
+                        decltype(
+                            ::alpaka::rand::distribution::createUniformUint<RngType>(
+                                std::declval<T_Acc const &>()));
+                    PMACC_ALIGN(dist, Dist);
+                public:
                     HDINLINE Uniform_int()
                     {
                     }
 
+                    HDINLINE Uniform_int(const T_Acc& acc) : dist(::alpaka::rand::distribution::createUniformUint<RngType>(acc))
+                    {
+                    }
+
                     template<class RNGState>
-                    DINLINE Type operator()(RNGState* state) const
+                    DINLINE Type operator()(RNGState& state)
                     {
                         /*curand create a random 32Bit int value*/
-                        return curand(state);
+                        return static_cast<Type>(dist(state));
                     }
                 };
             }

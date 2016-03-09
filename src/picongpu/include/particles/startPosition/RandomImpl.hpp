@@ -66,13 +66,14 @@ struct RandomImpl
         totalGpuOffset.y( ) += numSlides * localCells.y( );
     }
 
-    DINLINE void init(const DataSpace<simDim>& totalCellOffset)
+    template<typename T_Acc>
+    DINLINE void init(const T_Acc& acc, const DataSpace<simDim>& totalCellOffset)
     {
         const DataSpace<simDim> localCellIdx(totalCellOffset - totalGpuOffset);
         const uint32_t cellIdx = DataSpaceOperations<simDim>::map(
                                                                   localCells,
                                                                   localCellIdx);
-        rng = nvrng::create(rngMethods::Xor(seed, cellIdx), rngDistributions::Uniform_float());
+        rng = nvrng::create(rngMethods::Xor<T_Acc>(acc,seed, cellIdx), rngDistributions::Uniform_float<T_Acc>(acc));
     }
 
     /** Distributes the initial particles uniformly random within the cell.
@@ -122,7 +123,7 @@ struct RandomImpl
     }
 
 protected:
-    typedef PMacc::nvidia::rng::RNG<rngMethods::Xor, rngDistributions::Uniform_float> RngType;
+    typedef PMacc::nvidia::rng::RNG<rngMethods::Xor<cupla::Acc>, rngDistributions::Uniform_float<cupla::Acc> > RngType;
 
     PMACC_ALIGN(rng, RngType);
     PMACC_ALIGN(seed,uint32_t);

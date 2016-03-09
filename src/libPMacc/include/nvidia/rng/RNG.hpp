@@ -66,7 +66,7 @@ public:
      */
     DINLINE typename Distribution::Type operator()()
     {
-        return this->op(this->getStatePtr());
+        return this->op(this->getState());
     }
 
 private:
