@@ -187,13 +187,28 @@ void FieldJ::bashField( uint32_t exchangeType )
     dim3 grid = mapper.getGridDim( );
 
     const DataSpace<simDim> direction = Mask::getRelativeDirections<simDim > ( mapper.getExchangeType( ) );
-    __cudaKernel( kernelBashCurrent )
-        ( grid, mapper.getSuperCellSize( ) )
-        ( fieldJ.getDeviceBuffer( ).getDataBox( ),
-          fieldJ.getSendExchange( exchangeType ).getDeviceBuffer( ).getDataBox( ),
-          fieldJ.getSendExchange( exchangeType ).getDeviceBuffer( ).getDataSpace( ),
-          direction,
-          mapper );
+    constexpr bool useElements = !cupla::OptimizeBlockElem<cupla::AccFast>::isIdentity;
+    if(useElements)
+    {
+        using ElemSize = typename  MappingDesc::SuperCellSize;
+        __cudaKernel_ELEM( kernelBashCurrent<ElemSize> )
+            ( grid, 1, mapper.getSuperCellSize( ) )
+            ( fieldJ.getDeviceBuffer( ).getDataBox( ),
+              fieldJ.getSendExchange( exchangeType ).getDeviceBuffer( ).getDataBox( ),
+              fieldJ.getSendExchange( exchangeType ).getDeviceBuffer( ).getDataSpace( ),
+              direction,
+              mapper );
+    }
+    else
+    {
+        __cudaKernel( kernelBashCurrent<> )
+            ( grid, mapper.getSuperCellSize( ) )
+            ( fieldJ.getDeviceBuffer( ).getDataBox( ),
+              fieldJ.getSendExchange( exchangeType ).getDeviceBuffer( ).getDataBox( ),
+              fieldJ.getSendExchange( exchangeType ).getDeviceBuffer( ).getDataSpace( ),
+              direction,
+              mapper );
+    }
 }
 
 void FieldJ::insertField( uint32_t exchangeType )
@@ -203,12 +218,26 @@ void FieldJ::insertField( uint32_t exchangeType )
     dim3 grid = mapper.getGridDim( );
 
     const DataSpace<simDim> direction = Mask::getRelativeDirections<simDim > ( mapper.getExchangeType( ) );
-    __cudaKernel( kernelInsertCurrent )
-        ( grid, mapper.getSuperCellSize( ) )
-        ( fieldJ.getDeviceBuffer( ).getDataBox( ),
-          fieldJ.getReceiveExchange( exchangeType ).getDeviceBuffer( ).getDataBox( ),
-          fieldJ.getReceiveExchange( exchangeType ).getDeviceBuffer( ).getDataSpace( ),
-          direction, mapper );
+    constexpr bool useElements = !cupla::OptimizeBlockElem<cupla::AccFast>::isIdentity;
+    if(useElements)
+    {
+        using ElemSize = typename  MappingDesc::SuperCellSize;
+        __cudaKernel_ELEM( kernelInsertCurrent<ElemSize> )
+            ( grid, 1, mapper.getSuperCellSize( ) )
+            ( fieldJ.getDeviceBuffer( ).getDataBox( ),
+            fieldJ.getReceiveExchange( exchangeType ).getDeviceBuffer( ).getDataBox( ),
+            fieldJ.getReceiveExchange( exchangeType ).getDeviceBuffer( ).getDataSpace( ),
+            direction, mapper );
+    }
+    else
+    {
+        __cudaKernel( kernelInsertCurrent<> )
+            ( grid, mapper.getSuperCellSize( ) )
+            ( fieldJ.getDeviceBuffer( ).getDataBox( ),
+            fieldJ.getReceiveExchange( exchangeType ).getDeviceBuffer( ).getDataBox( ),
+            fieldJ.getReceiveExchange( exchangeType ).getDeviceBuffer( ).getDataSpace( ),
+            direction, mapper );
+    }
 }
 
 void FieldJ::init( FieldE &fieldE, FieldB &fieldB )
@@ -257,10 +286,14 @@ FieldJ::getCommTag( )
 template<uint32_t AREA, class ParticlesClass>
 void FieldJ::computeCurrent( ParticlesClass &parClass, uint32_t )
 {
+#if (PMACC_CUDA_ENABLED == 1)
     /** tune paramter to use more threads than cells in a supercell
      *  valid domain: 1 <= workerMultiplier
      */
     const int workerMultiplier = 2;
+#else
+     const int workerMultiplier = 1;
+#endif
 
     typedef typename ParticlesClass::FrameType FrameType;
     typedef typename PMacc::traits::Resolve<
@@ -275,36 +308,66 @@ void FieldJ::computeCurrent( ParticlesClass &parClass, uint32_t )
         typename GetMargin<ParticleCurrentSolver>::UpperMargin
         > BlockArea;
 
-    StrideMapping<AREA, simDim, MappingDesc> mapper( cellDescription );
+    StrideMapping<AREA, 3, MappingDesc> mapper( cellDescription );
     typename ParticlesClass::ParticlesBoxType pBox = parClass.getDeviceParticlesBox( );
     FieldJ::DataBoxType jBox = this->fieldJ.getDeviceBuffer( ).getDataBox( );
     FrameSolver solver( DELTA_T );
 
     DataSpace<simDim> blockSize( mapper.getSuperCellSize( ) );
     blockSize[simDim - 1] *= workerMultiplier;
+    constexpr bool useElements = !cupla::OptimizeBlockElem<cupla::AccFast>::isIdentity;
 
     do
     {
-        __cudaKernel( kernelComputeCurrent<workerMultiplier, BlockArea, AREA> )
-            ( mapper.getGridDim( ), blockSize )
-            ( jBox,
-              pBox, solver, mapper );
+        if(useElements)
+        {
+            using ElemSize = typename  MappingDesc::SuperCellSize;
+            __cudaKernel_ELEM( kernelComputeCurrent<workerMultiplier, BlockArea, AREA, ElemSize> )
+                ( mapper.getGridDim( ), 1, blockSize )
+                ( jBox,
+                  pBox, solver, mapper );
+        }
+        else
+        {
+            __cudaKernel( kernelComputeCurrent<workerMultiplier, BlockArea, AREA> )
+                ( mapper.getGridDim( ), blockSize )
+                ( jBox,
+                  pBox, solver, mapper );
+        }
     }
     while ( mapper.next( ) );
+    for (int i =0; i< 100;++i)
+        mapper.next( );
 
 }
 
 template<uint32_t AREA, class T_CurrentInterpolation>
 void FieldJ::addCurrentToEMF( T_CurrentInterpolation& myCurrentInterpolation )
 {
-    __picKernelArea( kernelAddCurrentToEMF )(
-                     cellDescription,
-                     AREA )
-        ( MappingDesc::SuperCellSize::toRT( ).toDim3( ) )
-        ( this->fieldE->getDeviceDataBox( ),
-          this->fieldB->getDeviceDataBox( ),
-          this->fieldJ.getDeviceBuffer( ).getDataBox( ),
-          myCurrentInterpolation );
+    constexpr bool useElements = !cupla::OptimizeBlockElem<cupla::AccFast>::isIdentity;
+    if(useElements)
+    {
+        using ElemSize = typename  MappingDesc::SuperCellSize;
+        __picKernelArea_ELEM( kernelAddCurrentToEMF<ElemSize> )(
+                         cellDescription,
+                         AREA )
+            ( 1, MappingDesc::SuperCellSize::toRT( ).toDim3( ) )
+            ( this->fieldE->getDeviceDataBox( ),
+              this->fieldB->getDeviceDataBox( ),
+              this->fieldJ.getDeviceBuffer( ).getDataBox( ),
+              myCurrentInterpolation );
+    }
+    else
+    {
+        __picKernelArea( kernelAddCurrentToEMF<> )(
+                         cellDescription,
+                         AREA )
+            ( MappingDesc::SuperCellSize::toRT( ).toDim3( ) )
+            ( this->fieldE->getDeviceDataBox( ),
+              this->fieldB->getDeviceDataBox( ),
+              this->fieldJ.getDeviceBuffer( ).getDataBox( ),
+              myCurrentInterpolation );
+    }
 }
 
-}
+} //namespace picongpu

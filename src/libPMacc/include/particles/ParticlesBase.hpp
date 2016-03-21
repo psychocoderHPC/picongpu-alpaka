@@ -92,21 +92,38 @@ protected:
     template<uint32_t AREA>
     void shiftParticles()
     {
-        StrideMapping<AREA, DIM3, MappingDesc> mapper(this->cellDescription);
-        ParticlesBoxType pBox = particlesBuffer->getDeviceParticleBox();
-
         __startTransaction(__getTransactionEvent());
+
+        StrideMapping<AREA, 3, MappingDesc> mapper(this->cellDescription);
+        ParticlesBoxType pBox = particlesBuffer->getDeviceParticleBox();
         do
         {
-            __cudaKernel(kernelShiftParticles)
-                (mapper.getGridDim(), TileSize)
-                (pBox, mapper);
-            __cudaKernel(kernelFillGaps)
-                (mapper.getGridDim(), TileSize)
-                (pBox, mapper);
-            __cudaKernel(kernelFillGapsLastFrame)
-                (mapper.getGridDim(), TileSize)
-                (pBox, mapper);
+
+            constexpr bool useElements = !cupla::OptimizeBlockElem<cupla::AccFast>::isIdentity;
+            if(useElements)
+            {
+                __cudaKernel_ELEM(kernelShiftParticles<TileSize>)
+                    (mapper.getGridDim(), 1, TileSize)
+                    (pBox, mapper);
+                __cudaKernel_ELEM(kernelFillGaps<TileSize>)
+                    (mapper.getGridDim(), 1, TileSize)
+                    (pBox, mapper);
+                __cudaKernel_ELEM(kernelFillGapsLastFrame<TileSize>)
+                    (mapper.getGridDim(), 1, TileSize)
+                    (pBox, mapper);
+            }
+            else
+            {
+                __cudaKernel(kernelShiftParticles<>)
+                    (mapper.getGridDim(), TileSize)
+                    (pBox, mapper);
+                __cudaKernel(kernelFillGaps<>)
+                    (mapper.getGridDim(), TileSize)
+                    (pBox, mapper);
+                __cudaKernel(kernelFillGapsLastFrame<>)
+                    (mapper.getGridDim(), TileSize)
+                    (pBox, mapper);
+            }
         }
         while (mapper.next());
 
@@ -122,13 +139,27 @@ protected:
     {
         AreaMapping<AREA, MappingDesc> mapper(this->cellDescription);
 
-        __cudaKernel(kernelFillGaps)
-            (mapper.getGridDim(), TileSize)
-            (particlesBuffer->getDeviceParticleBox(), mapper);
+        constexpr bool useElements = !cupla::OptimizeBlockElem<cupla::AccFast>::isIdentity;
+        if(useElements)
+        {
+            __cudaKernel_ELEM(kernelFillGaps<TileSize>)
+                (mapper.getGridDim(), 1, TileSize )
+                (particlesBuffer->getDeviceParticleBox(), mapper);
 
-        __cudaKernel(kernelFillGapsLastFrame)
-            (mapper.getGridDim(), TileSize)
-            (particlesBuffer->getDeviceParticleBox(), mapper);
+            __cudaKernel_ELEM(kernelFillGapsLastFrame<TileSize>)
+                (mapper.getGridDim(), 1, TileSize)
+                (particlesBuffer->getDeviceParticleBox(), mapper);
+        }
+        else
+        {
+            __cudaKernel(kernelFillGaps<>)
+                (mapper.getGridDim(), TileSize)
+                (particlesBuffer->getDeviceParticleBox(), mapper);
+
+            __cudaKernel(kernelFillGapsLastFrame<>)
+                (mapper.getGridDim(), TileSize)
+                (particlesBuffer->getDeviceParticleBox(), mapper);
+        }
     }
 
 

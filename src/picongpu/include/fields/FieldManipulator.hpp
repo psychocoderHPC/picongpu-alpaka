@@ -85,8 +85,8 @@ public:
                 }
                 else
                 {
-                    __cudaKernel_ELEM(kernelAbsorbBorder<typename PMacc::math::CT::make_Int<simDim,1>::type>)
-                        (mapper.getGridDim(), mapper.getSuperCellSize(), 1)
+                    __cudaKernel(kernelAbsorbBorder<>)
+                        (mapper.getGridDim(), mapper.getSuperCellSize())
                         (deviceBox, thickness, absorber_strength,
                          mapper);
                 }

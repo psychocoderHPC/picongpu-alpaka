@@ -213,11 +213,10 @@ void FieldE::laserManipulation( uint32_t currentStep )
     }
     else
     {
-        __cudaKernel_ELEM( kernelLaserE<typename PMacc::math::CT::make_Int<simDim,1>::type> )
+        __cudaKernel( kernelLaserE<> )
             (
                 gridBlocks,
-                blockSize,
-                1
+                blockSize
             )
             ( this->getDeviceDataBox( ), laser->getLaserManipulator( currentStep ) );
     }

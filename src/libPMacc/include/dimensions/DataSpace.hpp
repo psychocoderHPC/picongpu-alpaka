@@ -61,7 +61,7 @@ namespace PMacc
          * constructor.
          * Sets size of all dimensions from cuda dim3.
          */
-        HDINLINE DataSpace(dim3 value)
+        explicit HDINLINE DataSpace(dim3 value)
         {
             for (uint32_t i = 0; i < DIM; ++i)
             {
@@ -73,7 +73,7 @@ namespace PMacc
          * constructor.
          * Sets size of all dimensions from cuda uint3 (e.g. threadIdx/blockIdx)
          */
-        HDINLINE DataSpace(uint3 value)
+        explicit HDINLINE DataSpace(uint3 value)
         {
             for (uint32_t i = 0; i < DIM; ++i)
             {

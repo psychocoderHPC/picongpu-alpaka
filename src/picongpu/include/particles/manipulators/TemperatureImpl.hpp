@@ -121,7 +121,7 @@ struct TemperatureImpl : private T_ValueFunctor
     }
 
 private:
-    typedef PMacc::nvidia::rng::RNG<rngMethods::Xor<cupla::Acc>, rngDistributions::Normal_float<cupla::Acc>> RngType;
+    typedef PMacc::nvidia::rng::RNG<rngMethods::Xor<cupla::AccFast>, rngDistributions::Normal_float<cupla::AccFast>> RngType;
     RngType rng;
     bool isInitialized;
     uint32_t seed;

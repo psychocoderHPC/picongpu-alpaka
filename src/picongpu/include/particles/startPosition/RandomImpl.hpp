@@ -48,6 +48,8 @@ struct RandomImpl
     typedef T_SpeciesType SpeciesType;
     typedef typename MakeIdentifier<SpeciesType>::type SpeciesName;
 
+    HDINLINE RandomImpl() = default;
+
     HINLINE RandomImpl(uint32_t currentStep)
     {
         typedef typename SpeciesType::FrameType FrameType;
@@ -123,7 +125,7 @@ struct RandomImpl
     }
 
 protected:
-    typedef PMacc::nvidia::rng::RNG<rngMethods::Xor<cupla::Acc>, rngDistributions::Uniform_float<cupla::Acc> > RngType;
+    typedef PMacc::nvidia::rng::RNG<rngMethods::Xor<cupla::AccFast>, rngDistributions::Uniform_float<cupla::AccFast> > RngType;
 
     PMACC_ALIGN(rng, RngType);
     PMACC_ALIGN(seed,uint32_t);

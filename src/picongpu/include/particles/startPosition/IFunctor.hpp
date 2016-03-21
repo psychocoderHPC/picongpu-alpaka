@@ -36,7 +36,8 @@ template<typename T_Base>
 struct IFunctor : private T_Base
 {
     typedef T_Base Base;
-
+    HDINLINE IFunctor() = default;
+    
     HINLINE IFunctor(uint32_t currentStep) : Base(currentStep)
     {
     }
