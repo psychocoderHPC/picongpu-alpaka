@@ -254,7 +254,9 @@ public:
             /* dump 0% output */
             dumpTimes(tSimCalculation, tRound, roundAvg, currentStep);
 
-
+            TimeIntervall scalingTimer;
+            MPI_CHECK(MPI_Barrier(Environment<DIM3>::get().GridController().
+                  getCommunicator().getMPIComm()));
             /** \todo currently we assume this is the only point in the simulation
              *        that is allowed to manipulate `currentStep`. Else, one needs to
              *        add and act on changed values via
@@ -269,6 +271,14 @@ public:
 
                 currentStep++;
                 Environment<>::get().SimulationDescription().setCurrentStep( currentStep );
+                if(currentStep%10==0)
+            	{
+                	scalingTimer.toggleEnd();
+                	if(output)
+                	{
+                    	std::cout<<"STEPTIME "<<currentStep<<" "<<(scalingTimer.getInterval()/1000.)<<" s"<<std::endl;
+                	}
+            	}
                 /*output after a round*/
                 dumpTimes(tSimCalculation, tRound, roundAvg, currentStep);
 
@@ -280,6 +290,15 @@ public:
             // simulatation end
             Environment<>::get().Manager().waitForAllTasks();
 
+
+        /* scaling test end */
+        MPI_CHECK(MPI_Barrier(Environment<DIM3>::get().GridController().
+                                      getCommunicator().getMPIComm()));
+        scalingTimer.toggleEnd();
+        if(output)
+        {
+            std::cout<<"RUNTIME "<<runSteps<<" "<<(scalingTimer.getInterval()/1000.)<<" s"<<std::endl;
+        }
             tSimCalculation.toggleEnd();
 
             if (output)
