@@ -40,6 +40,8 @@
 #include <iomanip>
 #include <fstream>
 
+#include <cuda_profiler_api.h>
+
 namespace PMacc
 {
 
@@ -262,6 +264,7 @@ public:
              *        add and act on changed values via
              *        `SimulationDescription().getCurrentStep()` in this loop
              */
+            cudaProfilerStart();
             while (currentStep < Environment<>::get().SimulationDescription().getRunSteps())
             {
                 tRound.toggleStart();
@@ -289,6 +292,7 @@ public:
 
             // simulatation end
             Environment<>::get().Manager().waitForAllTasks();
+            cudaProfilerStop();
 
 
         /* scaling test end */
