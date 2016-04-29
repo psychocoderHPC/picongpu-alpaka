@@ -176,13 +176,29 @@ void Particles<T_ParticleDescription>::update(uint32_t )
 
     dim3 block( MappingDesc::SuperCellSize::toRT().toDim3() );
 
-    __picKernelArea( kernelMoveAndMarkParticles<BlockArea>)( this->cellDescription, CORE + BORDER )
-        (block)
-        ( this->getDeviceParticlesBox( ),
-          this->fieldE->getDeviceDataBox( ),
-          this->fieldB->getDeviceDataBox( ),
-          FrameSolver( )
-          );
+    constexpr bool useElements = cupla::traits::IsThreadSeqAcc< cupla::AccThreadSeq >::value;
+    
+    if(useElements)
+    {
+        using ElemSize = typename  MappingDesc::SuperCellSize;
+        __picKernelArea_ELEM( kernelMoveAndMarkParticles<BlockArea, ElemSize>)( this->cellDescription, CORE + BORDER )
+            (1, block)
+            ( this->getDeviceParticlesBox( ),
+              this->fieldE->getDeviceDataBox( ),
+              this->fieldB->getDeviceDataBox( ),
+              FrameSolver( )
+              );
+    }
+    else
+    {
+        __picKernelArea( kernelMoveAndMarkParticles<BlockArea>)( this->cellDescription, CORE + BORDER )
+            (block)
+            ( this->getDeviceParticlesBox( ),
+              this->fieldE->getDeviceDataBox( ),
+              this->fieldB->getDeviceDataBox( ),
+              FrameSolver( )
+              );
+    }
 
     ParticlesBaseType::template shiftParticles < CORE + BORDER > ( );
 }
@@ -202,11 +218,24 @@ void Particles<T_ParticleDescription>::initGas( T_GasFunctor& gasFunctor,
     totalGpuCellOffset.y( ) += numSlides * localCells.y( );
 
     dim3 block( MappingDesc::SuperCellSize::toRT( ).toDim3( ) );
-    __picKernelArea( kernelFillGridWithParticles<Particles<T_ParticleDescription> >)(
-                      this->cellDescription, CORE + BORDER)
-        (block)
-        ( gasFunctor, positionFunctor, totalGpuCellOffset, this->particlesBuffer->getDeviceParticleBox( ) );
 
+    constexpr bool useElements = cupla::traits::IsThreadSeqAcc< cupla::AccThreadSeq >::value;
+    if(useElements)
+    {
+        using ElemSize = typename  MappingDesc::SuperCellSize;
+        __picKernelArea_ELEM( kernelFillGridWithParticles<Particles<T_ParticleDescription>, ElemSize >)(
+                          this->cellDescription, CORE + BORDER)
+            (1,block)
+            ( gasFunctor, positionFunctor, totalGpuCellOffset, this->particlesBuffer->getDeviceParticleBox( ) );
+    }
+    else
+    {
+        // because of the random number generator (fix cusage of cupla::AccThreadSeq) only a call with __picKernelArea_ELEM is allowed
+        __picKernelArea_ELEM( kernelFillGridWithParticles<Particles<T_ParticleDescription> >)(
+                          this->cellDescription, CORE + BORDER)
+            (block, 1)
+            ( gasFunctor, positionFunctor, totalGpuCellOffset, this->particlesBuffer->getDeviceParticleBox( ) );
+    }
 
     this->fillAllGaps( );
 }
@@ -216,11 +245,22 @@ template< typename T_SrcParticleDescription,
           typename T_ManipulateFunctor>
 void Particles<T_ParticleDescription>::deviceCloneFrom( Particles< T_SrcParticleDescription> &src, T_ManipulateFunctor& functor )
 {
-    dim3 block( PMacc::math::CT::volume<SuperCellSize>::type::value );
+    const int cellsInSupercell = PMacc::math::CT::volume<SuperCellSize>::type::value;
+
+    dim3 block( cellsInSupercell );
 
     log<picLog::SIMULATION_STATE > ( "clone species %1%" ) % FrameType::getName( );
-    __picKernelArea( kernelCloneParticles)( this->cellDescription, CORE + BORDER )
-        (block) ( this->getDeviceParticlesBox( ), src.getDeviceParticlesBox( ), functor );
+    constexpr bool useElements = cupla::traits::IsThreadSeqAcc< cupla::AccThreadSeq >::value;
+    if(useElements)
+    {
+        __picKernelArea_ELEM( kernelCloneParticles<cellsInSupercell>)( this->cellDescription, CORE + BORDER )
+            (1,block) ( this->getDeviceParticlesBox( ), src.getDeviceParticlesBox( ), functor );
+    }
+    else
+    {
+        __picKernelArea( kernelCloneParticles<>)( this->cellDescription, CORE + BORDER )
+            (block) ( this->getDeviceParticlesBox( ), src.getDeviceParticlesBox( ), functor );
+    }
     this->fillAllGaps( );
 }
 
@@ -231,10 +271,22 @@ void Particles<T_ParticleDescription>::manipulateAllParticles( uint32_t currentS
 
     dim3 block( MappingDesc::SuperCellSize::toRT( ).toDim3( ) );
 
-    __picKernelArea( kernelManipulateAllParticles)( this->cellDescription, CORE + BORDER )
-        (block)
-        ( this->particlesBuffer->getDeviceParticleBox( ),
-          functor );
+    constexpr bool useElements = cupla::traits::IsThreadSeqAcc< cupla::AccThreadSeq >::value;
+    if(useElements)
+    {
+        using ElemSize = typename  MappingDesc::SuperCellSize;
+        __picKernelArea_ELEM( kernelManipulateAllParticles<ElemSize>)( this->cellDescription, CORE + BORDER )
+            (1,block)
+            ( this->particlesBuffer->getDeviceParticleBox( ),
+              functor );
+    }
+    else
+    {
+        __picKernelArea( kernelManipulateAllParticles<>)( this->cellDescription, CORE + BORDER )
+            (block)
+            ( this->particlesBuffer->getDeviceParticleBox( ),
+              functor );
+    }
 }
 
 } // end namespace

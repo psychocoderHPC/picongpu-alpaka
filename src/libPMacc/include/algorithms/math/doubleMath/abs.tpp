@@ -41,7 +41,12 @@ struct Abs<double>
 
     HDINLINE double operator( )(double value)
     {
+#ifdef __CUDA_ARCH__
         return ::abs( value );
+#else
+        /// \bug on cpu `::abs(double)` always return zero
+        return std::abs( value );
+#endif
     }
 };
 

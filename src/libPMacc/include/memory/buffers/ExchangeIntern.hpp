@@ -72,11 +72,13 @@ namespace PMacc
             this->deviceBuffer = new DeviceBufferIntern<TYPE, DIM > (source, tmp_size,
                                                                      exchangeTypeToOffset(exchange, memoryLayout, guardingCells, area),
                                                                      sizeOnDevice);
+#if(PMACC_CUDA_ENABLED == 1)
             if (DIM > DIM1)
             {
                 /*create double buffer on gpu for faster memory transfers*/
                 this->deviceDoubleBuffer = new DeviceBufferIntern<TYPE, DIM > (tmp_size, false, true);
             }
+#endif
 
             this->hostBuffer = new HostBufferIntern<TYPE, DIM > (tmp_size);
         }

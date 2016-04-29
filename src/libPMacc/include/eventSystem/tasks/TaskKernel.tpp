@@ -32,7 +32,7 @@ namespace PMacc{
     {
         canBeChecked = true;
         this->activate();
-
+        //std::cout<<this->toString()<<std::endl;
         Environment<>::get().Manager().addTask(this);
         __setTransactionEvent(EventTask(this->getId()));
     }

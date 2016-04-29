@@ -37,6 +37,8 @@ struct IManipulator : private T_Base
 {
     typedef T_Base Base;
 
+    HDINLINE IManipulator() = default;
+
     HINLINE IManipulator(uint32_t currentStep) : Base(currentStep)
     {
     }

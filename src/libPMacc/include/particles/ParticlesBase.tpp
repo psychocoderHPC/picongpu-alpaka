@@ -40,10 +40,19 @@ namespace PMacc
 
         ExchangeMapping<GUARD, MappingDesc> mapper(this->cellDescription, exchangeType);
         dim3 grid(mapper.getGridDim());
-
-        __cudaKernel(kernelDeleteParticles)
-                (grid, TileSize)
-                (particlesBuffer->getDeviceParticleBox(), mapper);
+        constexpr bool useElements = cupla::traits::IsThreadSeqAcc< cupla::AccThreadSeq >::value;
+        if(useElements)
+        {
+            __cudaKernel_ELEM(kernelDeleteParticles<TileSize>)
+                    (grid, 1, TileSize)
+                    (particlesBuffer->getDeviceParticleBox(), mapper);
+        }
+        else
+        {
+            __cudaKernel(kernelDeleteParticles<>)
+                    (grid, TileSize)
+                    (particlesBuffer->getDeviceParticleBox(), mapper);
+        }
     }
 
     template<typename T_ParticleDescription, class MappingDesc>
@@ -53,10 +62,19 @@ namespace PMacc
 
         AreaMapping<T_area, MappingDesc> mapper(this->cellDescription);
         dim3 grid(mapper.getGridDim());
-
-        __cudaKernel(kernelDeleteParticles)
-                (grid, TileSize)
-                (particlesBuffer->getDeviceParticleBox(), mapper);
+        constexpr bool useElements = cupla::traits::IsThreadSeqAcc< cupla::AccThreadSeq >::value;
+        if(useElements)
+        {
+            __cudaKernel_ELEM(kernelDeleteParticles<TileSize>)
+                    (grid, 1, TileSize)
+                    (particlesBuffer->getDeviceParticleBox(), mapper);
+        }
+        else
+        {
+            __cudaKernel(kernelDeleteParticles<>)
+                    (grid, TileSize)
+                    (particlesBuffer->getDeviceParticleBox(), mapper);
+        }
     }
 
     template<typename T_ParticleDescription, class MappingDesc>
@@ -75,11 +93,21 @@ namespace PMacc
 
             particlesBuffer->getSendExchangeStack(exchangeType).setCurrentSize(0);
             dim3 grid(mapper.getGridDim());
-
-            __cudaKernel(kernelBashParticles)
-                    (grid, TileSize)
-                    (particlesBuffer->getDeviceParticleBox(),
-                    particlesBuffer->getSendExchangeStack(exchangeType).getDeviceExchangePushDataBox(), mapper);
+            constexpr bool useElements = cupla::traits::IsThreadSeqAcc< cupla::AccThreadSeq >::value;
+            if(useElements)
+            {
+                __cudaKernel_ELEM(kernelBashParticles<TileSize>)
+                        (grid, 1, TileSize)
+                        (particlesBuffer->getDeviceParticleBox(),
+                        particlesBuffer->getSendExchangeStack(exchangeType).getDeviceExchangePushDataBox(), mapper);
+            }
+            else
+            {
+                __cudaKernel(kernelBashParticles<>)
+                        (grid, TileSize)
+                        (particlesBuffer->getDeviceParticleBox(),
+                        particlesBuffer->getSendExchangeStack(exchangeType).getDeviceExchangePushDataBox(), mapper);
+            }
         }
     }
 
@@ -93,11 +121,23 @@ namespace PMacc
             if (grid != 0)
             {
                 ExchangeMapping<GUARD, MappingDesc> mapper(this->cellDescription, exchangeType);
-                __cudaKernel(kernelInsertParticles)
-                        (grid, TileSize)
-                        (particlesBuffer->getDeviceParticleBox(),
-                        particlesBuffer->getReceiveExchangeStack(exchangeType).getDeviceExchangePopDataBox(),
-                        mapper);
+                constexpr bool useElements = cupla::traits::IsThreadSeqAcc< cupla::AccThreadSeq >::value;
+                if(useElements)
+                {
+                    __cudaKernel_ELEM(kernelInsertParticles<TileSize>)
+                            (grid, 1, TileSize)
+                            (particlesBuffer->getDeviceParticleBox(),
+                            particlesBuffer->getReceiveExchangeStack(exchangeType).getDeviceExchangePopDataBox(),
+                            mapper);
+                }
+                else
+                {
+                    __cudaKernel(kernelInsertParticles<>)
+                            (grid, TileSize)
+                            (particlesBuffer->getDeviceParticleBox(),
+                            particlesBuffer->getReceiveExchangeStack(exchangeType).getDeviceExchangePopDataBox(),
+                            mapper);
+                }
             }
         }
     }
