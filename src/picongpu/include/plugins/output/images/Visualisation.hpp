@@ -204,72 +204,72 @@ DINLINE void operator()(
     mapElem::vectorize<simDim>(
         [&]( const DataSpace<simDim>& idx )
         {
-    const DataSpace<simDim> cell(originCell + idx);
-    const DataSpace<simDim> realCell(cell - MappingDesc::SuperCellSize::toRT() * mapper.getGuardingSuperCells()); //delete guard from cell idx
-    const DataSpace<DIM2> imageCell(
-                                    realCell[transpose.x()],
-                                    realCell[transpose.y()]);
-    const DataSpace<simDim> realCell2(blockOffset + threadId + idx); //delete guard from cell idx
+            const DataSpace<simDim> cell(originCell + idx);
+            const DataSpace<simDim> realCell(cell - MappingDesc::SuperCellSize::toRT() * mapper.getGuardingSuperCells()); //delete guard from cell idx
+            const DataSpace<DIM2> imageCell(
+                                            realCell[transpose.x()],
+                                            realCell[transpose.y()]);
+            const DataSpace<simDim> realCell2(blockOffset + threadId + idx); //delete guard from cell idx
 
 #if (SIMDIM==DIM3)
-    uint32_t globalCell = realCell2[sliceDim] + globalOffset;
+            uint32_t globalCell = realCell2[sliceDim] + globalOffset;
 
-    if (globalCell != slice)
-        return;
+            if (globalCell != slice)
+                return;
 #endif
-    // set fields of this cell to vars
-    typename BBox::ValueType field_b = fieldB(cell);
-    typename EBox::ValueType field_e = fieldE(cell);
-    typename JBox::ValueType field_j = fieldJ(cell);
+            // set fields of this cell to vars
+            typename BBox::ValueType field_b = fieldB(cell);
+            typename EBox::ValueType field_e = fieldE(cell);
+            typename JBox::ValueType field_j = fieldJ(cell);
 
 #if(SIMDIM==DIM3)
-    field_j = float3_X(
-                       field_j.x() * CELL_HEIGHT * CELL_DEPTH,
-                       field_j.y() * CELL_WIDTH * CELL_DEPTH,
-                       field_j.z() * CELL_WIDTH * CELL_HEIGHT
-                       );
+            field_j = float3_X(
+                               field_j.x() * CELL_HEIGHT * CELL_DEPTH,
+                               field_j.y() * CELL_WIDTH * CELL_DEPTH,
+                               field_j.z() * CELL_WIDTH * CELL_HEIGHT
+                               );
 #elif (SIMDIM==DIM2)
-    field_j = float3_X(
-                       field_j.x() * CELL_HEIGHT,
-                       field_j.y() * CELL_WIDTH,
-                       field_j.z() * CELL_WIDTH * CELL_HEIGHT
-                       );
+            field_j = float3_X(
+                               field_j.x() * CELL_HEIGHT,
+                               field_j.y() * CELL_WIDTH,
+                               field_j.z() * CELL_WIDTH * CELL_HEIGHT
+                               );
 #endif
 
-    // reset picture to black
-    //   color range for each RGB channel: [0.0, 1.0]
-    float3_X pic = float3_X(0., 0., 0.);
+            // reset picture to black
+            //   color range for each RGB channel: [0.0, 1.0]
+            float3_X pic = float3_X(0., 0., 0.);
 
-    // typical values of the fields to normalize them to [0,1]
-    //
-    pic.x() = visPreview::preChannel1(field_b / typicalFields<EM_FIELD_SCALE_CHANNEL1>::get().x(),
-                                      field_e / typicalFields<EM_FIELD_SCALE_CHANNEL1>::get().y(),
-                                      field_j / typicalFields<EM_FIELD_SCALE_CHANNEL1>::get().z());
-    pic.y() = visPreview::preChannel2(field_b / typicalFields<EM_FIELD_SCALE_CHANNEL2>::get().x(),
-                                      field_e / typicalFields<EM_FIELD_SCALE_CHANNEL2>::get().y(),
-                                      field_j / typicalFields<EM_FIELD_SCALE_CHANNEL2>::get().z());
-    pic.z() = visPreview::preChannel3(field_b / typicalFields<EM_FIELD_SCALE_CHANNEL3>::get().x(),
-                                      field_e / typicalFields<EM_FIELD_SCALE_CHANNEL3>::get().y(),
-                                      field_j / typicalFields<EM_FIELD_SCALE_CHANNEL3>::get().z());
-    //visPreview::preChannel1Col::addRGB(pic,
-    //                                   visPreview::preChannel1(field_b * typicalFields<EM_FIELD_SCALE_CHANNEL1>::get().x(),
-    //                                                           field_e * typicalFields<EM_FIELD_SCALE_CHANNEL1>::get().y(),
-    //                                                           field_j * typicalFields<EM_FIELD_SCALE_CHANNEL1>::get().z()),
-    //                                   visPreview::preChannel1_opacity);
-    //visPreview::preChannel2Col::addRGB(pic,
-    //                                   visPreview::preChannel2(field_b * typicalFields<EM_FIELD_SCALE_CHANNEL2>::get().x(),
-    //                                                           field_e * typicalFields<EM_FIELD_SCALE_CHANNEL2>::get().y(),
-    //                                                           field_j * typicalFields<EM_FIELD_SCALE_CHANNEL2>::get().z()),
-    //                                   visPreview::preChannel2_opacity);
-    //visPreview::preChannel3Col::addRGB(pic,
-    //                                   visPreview::preChannel3(field_b * typicalFields<EM_FIELD_SCALE_CHANNEL3>::get().x(),
-    //                                                           field_e * typicalFields<EM_FIELD_SCALE_CHANNEL3>::get().y(),
-    //                                                           field_j * typicalFields<EM_FIELD_SCALE_CHANNEL3>::get().z()),
-    //                                   visPreview::preChannel3_opacity);
+            // typical values of the fields to normalize them to [0,1]
+            //
+            pic.x() = visPreview::preChannel1(field_b / typicalFields<EM_FIELD_SCALE_CHANNEL1>::get().x(),
+                                              field_e / typicalFields<EM_FIELD_SCALE_CHANNEL1>::get().y(),
+                                              field_j / typicalFields<EM_FIELD_SCALE_CHANNEL1>::get().z());
+            pic.y() = visPreview::preChannel2(field_b / typicalFields<EM_FIELD_SCALE_CHANNEL2>::get().x(),
+                                              field_e / typicalFields<EM_FIELD_SCALE_CHANNEL2>::get().y(),
+                                              field_j / typicalFields<EM_FIELD_SCALE_CHANNEL2>::get().z());
+            pic.z() = visPreview::preChannel3(field_b / typicalFields<EM_FIELD_SCALE_CHANNEL3>::get().x(),
+                                              field_e / typicalFields<EM_FIELD_SCALE_CHANNEL3>::get().y(),
+                                              field_j / typicalFields<EM_FIELD_SCALE_CHANNEL3>::get().z());
+            //visPreview::preChannel1Col::addRGB(pic,
+            //                                   visPreview::preChannel1(field_b * typicalFields<EM_FIELD_SCALE_CHANNEL1>::get().x(),
+            //                                                           field_e * typicalFields<EM_FIELD_SCALE_CHANNEL1>::get().y(),
+            //                                                           field_j * typicalFields<EM_FIELD_SCALE_CHANNEL1>::get().z()),
+            //                                   visPreview::preChannel1_opacity);
+            //visPreview::preChannel2Col::addRGB(pic,
+            //                                   visPreview::preChannel2(field_b * typicalFields<EM_FIELD_SCALE_CHANNEL2>::get().x(),
+            //                                                           field_e * typicalFields<EM_FIELD_SCALE_CHANNEL2>::get().y(),
+            //                                                           field_j * typicalFields<EM_FIELD_SCALE_CHANNEL2>::get().z()),
+            //                                   visPreview::preChannel2_opacity);
+            //visPreview::preChannel3Col::addRGB(pic,
+            //                                   visPreview::preChannel3(field_b * typicalFields<EM_FIELD_SCALE_CHANNEL3>::get().x(),
+            //                                                           field_e * typicalFields<EM_FIELD_SCALE_CHANNEL3>::get().y(),
+            //                                                           field_j * typicalFields<EM_FIELD_SCALE_CHANNEL3>::get().z()),
+            //                                   visPreview::preChannel3_opacity);
 
 
-    // draw to (perhaps smaller) image cell
-    image(imageCell) = pic;
+            // draw to (perhaps smaller) image cell
+            image(imageCell) = pic;
     },
     elemSize,
     mapElem::Contiguous()
@@ -277,7 +277,7 @@ DINLINE void operator()(
 }
 };
 
-template< typename T_ElemSize >
+template< typename T_ElemSize = typename PMacc::math::CT::make_Int<simDim,1>::type::vector_type >
 struct kernelPaintParticles3D
 {
 template<class ParBox, class Mapping, typename T_Acc>
@@ -325,25 +325,25 @@ operator()(const T_Acc& acc,
         [&]( const DataSpace<simDim>& idx )
         {
 
-    //\todo: guard size should not be set to (fixed) 1 here
-    const DataSpace<simDim> realCell(blockOffset + threadId + idx); //delete guard from cell idx
-    bool isImageThread = false;
+            //\todo: guard size should not be set to (fixed) 1 here
+            const DataSpace<simDim> realCell(blockOffset + threadId + idx); //delete guard from cell idx
+            bool isImageThread = false;
 #if(SIMDIM==DIM3)
-    uint32_t globalCell = realCell[sliceDim] + globalOffset;
+            uint32_t globalCell = realCell[sliceDim] + globalOffset;
 
-    if (globalCell == slice)
+            if (globalCell == slice)
 #endif
-    {
-        nvidia::atomicAllExch(acc, (int*) &isValid,1); /*WAW Error in cuda-memcheck racecheck*/
-        isImageThread = true;
-    }
+            {
+                nvidia::atomicAllExch(acc, (int*) &isValid,1); /*WAW Error in cuda-memcheck racecheck*/
+                isImageThread = true;
+            }
 
 
-    if (isImageThread)
-    {
-        const DataSpace<DIM2> t_idx(idx[transpose.x()], idx[transpose.y()]);
-        counter(localCell + t_idx) = float_X(0.0);
-    }
+            if (isImageThread)
+            {
+                const DataSpace<DIM2> t_idx(idx[transpose.x()], idx[transpose.y()]);
+                counter(localCell + t_idx) = float_X(0.0);
+            }
         },
         T_ElemSize::toRT(),
         mapElem::Contiguous()
@@ -358,28 +358,28 @@ operator()(const T_Acc& acc,
     while (frame.isValid()) //move over all Frames
     {
         mapElem::vectorize<simDim>(
-        [&]( const DataSpace<simDim>& idx )
-        {
-        int localId = DataSpaceOperations<simDim>::template map<Block>( threadId + idx );
-
-        PMACC_AUTO(particle, frame[localId]);
-        if (particle[multiMask_] == 1)
-        {
-            int cellIdx = particle[localCellIdx_];
-            // we only draw the first slice of cells in the super cell (z == 0)
-            const DataSpace<simDim> particleCellId(DataSpaceOperations<simDim>::template map<Block > (cellIdx));
-#if(SIMDIM==DIM3)
-            uint32_t globalParticleCell = particleCellId[sliceDim] + globalOffset + blockOffset[sliceDim];
-            if (globalParticleCell == slice)
-#endif
+            [&]( const DataSpace<simDim>& idx )
             {
-                const DataSpace<DIM2> reducedCell(particleCellId[transpose.x()], particleCellId[transpose.y()]);
-                atomicAdd(&(counter(reducedCell)), particle[weighting_] / particles::TYPICAL_NUM_PARTICLES_PER_MACROPARTICLE);
-            }
-        }
-        },
-        T_ElemSize::toRT(),
-        mapElem::Contiguous()
+                int localId = DataSpaceOperations<simDim>::template map<Block>( threadId + idx );
+
+                PMACC_AUTO(particle, frame[localId]);
+                if (particle[multiMask_] == 1)
+                {
+                    int cellIdx = particle[localCellIdx_];
+                    // we only draw the first slice of cells in the super cell (z == 0)
+                    const DataSpace<simDim> particleCellId(DataSpaceOperations<simDim>::template map<Block > (cellIdx));
+#if(SIMDIM==DIM3)
+                    uint32_t globalParticleCell = particleCellId[sliceDim] + globalOffset + blockOffset[sliceDim];
+                    if (globalParticleCell == slice)
+#endif
+                    {
+                        const DataSpace<DIM2> reducedCell(particleCellId[transpose.x()], particleCellId[transpose.y()]);
+                        atomicAdd(&(counter(reducedCell)), particle[weighting_] / particles::TYPICAL_NUM_PARTICLES_PER_MACROPARTICLE);
+                    }
+                }
+            },
+            T_ElemSize::toRT(),
+            mapElem::Contiguous()
         );
 
         frame = pb.getNextFrame(frame);
@@ -391,46 +391,46 @@ operator()(const T_Acc& acc,
         [&]( const DataSpace<simDim>& idx )
         {
 
-    const DataSpace<simDim> realCell(blockOffset + threadId + idx); //delete guard from cell idx
-        /*index in image*/
-    DataSpace<DIM2> imageCell(
-                              realCell[transpose.x()],
-                              realCell[transpose.y()]);
-    bool isImageThread = false;
+            const DataSpace<simDim> realCell(blockOffset + threadId + idx); //delete guard from cell idx
+                /*index in image*/
+            DataSpace<DIM2> imageCell(
+                                      realCell[transpose.x()],
+                                      realCell[transpose.y()]);
+            bool isImageThread = false;
 #if(SIMDIM==DIM3)
-    uint32_t globalCell = realCell[sliceDim] + globalOffset;
+            uint32_t globalCell = realCell[sliceDim] + globalOffset;
 
-    if (globalCell == slice)
+            if (globalCell == slice)
 #endif
-    {
-        isImageThread = true;
-    }
-    if (isImageThread)
-    {
-        /** Note: normally, we would multiply by particles::TYPICAL_NUM_PARTICLES_PER_MACROPARTICLE again.
-         *  BUT: since we are interested in a simple value between 0 and 1,
-         *       we stay with this number (normalized to the order of macro
-         *       particles) and devide by the number of typical macro particles
-         *       per cell
-         */
-        const DataSpace<DIM2> t_idx(idx[transpose.x()], idx[transpose.y()]);
-        float_X value = counter(localCell + t_idx)
-            / float_X(particles::TYPICAL_PARTICLES_PER_CELL); // * particles::TYPICAL_NUM_PARTICLES_PER_MACROPARTICLE;
-        if (value > 1.0) value = 1.0;
+            {
+                isImageThread = true;
+            }
+            if (isImageThread)
+            {
+                /** Note: normally, we would multiply by particles::TYPICAL_NUM_PARTICLES_PER_MACROPARTICLE again.
+                 *  BUT: since we are interested in a simple value between 0 and 1,
+                 *       we stay with this number (normalized to the order of macro
+                 *       particles) and devide by the number of typical macro particles
+                 *       per cell
+                 */
+                const DataSpace<DIM2> t_idx(idx[transpose.x()], idx[transpose.y()]);
+                float_X value = counter(localCell + t_idx)
+                    / float_X(particles::TYPICAL_PARTICLES_PER_CELL); // * particles::TYPICAL_NUM_PARTICLES_PER_MACROPARTICLE;
+                if (value > 1.0) value = 1.0;
 
-        //image(imageCell).x() = value;
-        visPreview::preParticleDensCol::addRGB(image(imageCell),
-                                               value,
-                                               visPreview::preParticleDens_opacity);
+                //image(imageCell).x() = value;
+                visPreview::preParticleDensCol::addRGB(image(imageCell),
+                                                       value,
+                                                       visPreview::preParticleDens_opacity);
 
-        // cut to [0, 1]
-        if (image(imageCell).x() < float_X(0.0)) image(imageCell).x() = float_X(0.0);
-        if (image(imageCell).x() > float_X(1.0)) image(imageCell).x() = float_X(1.0);
-        if (image(imageCell).y() < float_X(0.0)) image(imageCell).y() = float_X(0.0);
-        if (image(imageCell).y() > float_X(1.0)) image(imageCell).y() = float_X(1.0);
-        if (image(imageCell).z() < float_X(0.0)) image(imageCell).z() = float_X(0.0);
-        if (image(imageCell).z() > float_X(1.0)) image(imageCell).z() = float_X(1.0);
-    }
+                // cut to [0, 1]
+                if (image(imageCell).x() < float_X(0.0)) image(imageCell).x() = float_X(0.0);
+                if (image(imageCell).x() > float_X(1.0)) image(imageCell).x() = float_X(1.0);
+                if (image(imageCell).y() < float_X(0.0)) image(imageCell).y() = float_X(0.0);
+                if (image(imageCell).y() > float_X(1.0)) image(imageCell).y() = float_X(1.0);
+                if (image(imageCell).z() < float_X(0.0)) image(imageCell).z() = float_X(0.0);
+                if (image(imageCell).z() > float_X(1.0)) image(imageCell).z() = float_X(1.0);
+            }
         },
         T_ElemSize::toRT(),
         mapElem::Contiguous()
@@ -441,39 +441,61 @@ operator()(const T_Acc& acc,
 namespace vis_kernels
 {
 
+template< int T_elemSize = 1>
 struct divideAnyCell
 {
 template<class Mem, typename Type, typename T_Acc>
 DINLINE void operator()(const T_Acc& acc, Mem mem, uint32_t n, Type divisor) const
 {
-    uint32_t tid = blockIdx.x * blockDim.x + threadIdx.x;
-    if (tid >= n) return;
+    namespace mapElem = mappings::elements;
 
-    const float3_X FLT3_MIN = float3_X(FLT_MIN, FLT_MIN, FLT_MIN);
-    mem[tid] /= (divisor + FLT3_MIN);
+    uint32_t stirdedTid = blockIdx.x * blockDim.x * elemDim.x + threadIdx.x;
+
+    mapElem::vectorize<DIM1>(
+        [&]( const int idx )
+        {
+            const int tid = stirdedTid + idx;
+
+            if (tid >= n) return;
+
+            const float3_X FLT3_MIN = float3_X(FLT_MIN, FLT_MIN, FLT_MIN);
+            mem[tid] /= (divisor + FLT3_MIN);
+        },
+        T_elemSize
+    );
 }
 };
 
+template< int T_elemSize = 1>
 struct channelsToRGB
 {
 template<class Mem, typename T_Acc>
 DINLINE void operator()(const T_Acc& acc, Mem mem, uint32_t n) const
 {
-    uint32_t tid = blockIdx.x * blockDim.x + threadIdx.x;
-    if (tid >= n) return;
+    namespace mapElem = mappings::elements;
+    uint32_t stirdedTid = blockIdx.x * blockDim.x * elemDim.x + threadIdx.x;
 
-    float3_X rgb(float3_X::create(0.0));
+    mapElem::vectorize<DIM1>(
+        [&]( const int idx )
+        {
+            const int tid = stirdedTid + idx;
+            if (tid >= n) return;
 
-    visPreview::preChannel1Col::addRGB(rgb,
-                                       mem[tid].x(),
-                                       visPreview::preChannel1_opacity);
-    visPreview::preChannel2Col::addRGB(rgb,
-                                       mem[tid].y(),
-                                       visPreview::preChannel2_opacity);
-    visPreview::preChannel3Col::addRGB(rgb,
-                                       mem[tid].z(),
-                                       visPreview::preChannel3_opacity);
-    mem[tid] = rgb;
+            float3_X rgb(float3_X::create(0.0));
+
+            visPreview::preChannel1Col::addRGB(rgb,
+                                               mem[tid].x(),
+                                               visPreview::preChannel1_opacity);
+            visPreview::preChannel2Col::addRGB(rgb,
+                                               mem[tid].y(),
+                                               visPreview::preChannel2_opacity);
+            visPreview::preChannel3Col::addRGB(rgb,
+                                               mem[tid].z(),
+                                               visPreview::preChannel3_opacity);
+            mem[tid] = rgb;
+        },
+        T_elemSize
+    );
 }
 };
 
@@ -594,6 +616,8 @@ public:
         typedef DataBoxDim1Access<typename GridBuffer<float3_X, DIM2 >::DataBoxType> D1Box;
         D1Box d1access(img->getDeviceBuffer().getDataBox(), img->getGridLayout().getDataSpace());
 
+        constexpr bool useElements = cupla::traits::IsThreadSeqAcc< cupla::AccThreadSeq >::value;
+
 #if (EM_FIELD_SCALE_CHANNEL1 == -1 || EM_FIELD_SCALE_CHANNEL2 == -1 || EM_FIELD_SCALE_CHANNEL3 == -1)
         //reduce with functor max
         float3_X max = reduce(nvidia::functors::Max(),
@@ -616,16 +640,32 @@ public:
         //We don't know the superCellSize at compile time
         // (because of the runtime dimension selection in any analyser),
         // thus we must use a one dimension kernel and no mapper
-        __cudaKernel(vis_kernels::divideAnyCell)(ceil((float_64) elements / 256), 256)(d1access, elements, max);
+        if(useElements)
+        {
+            __cudaKernel_ELEM(vis_kernels::divideAnyCell<256>)(ceil((float_64) elements / 256), 1, 256)(d1access, elements, max);
+        }
+        else
+        {
+            __cudaKernel(vis_kernels::divideAnyCell<>)(ceil((float_64) elements / 256), 256)(d1access, elements, max);
+        }
 #endif
 
-        // convert channels to RGB
-        __cudaKernel(vis_kernels::channelsToRGB)(ceil((float_64) elements / 256), 256)(d1access, elements);
+
+        if(useElements)
+        {
+            // convert channels to RGB
+            __cudaKernel_ELEM(vis_kernels::channelsToRGB<256>)(ceil((float_64) elements / 256), 1, 256)(d1access, elements);
+        }
+        else
+        {
+            // convert channels to RGB
+            __cudaKernel(vis_kernels::channelsToRGB<>)(ceil((float_64) elements / 256), 256)(d1access, elements);
+        }
 
         // add density color channel
         DataSpace<simDim> blockSize(MappingDesc::SuperCellSize::toRT());
         DataSpace<DIM2> blockSize2D(blockSize[m_transpose.x()], blockSize[m_transpose.y()]);
-        constexpr bool useElements = !cupla::OptimizeBlockElem<cupla::AccFast>::isIdentity;
+
         if(useElements)
         {
             //create image particles
@@ -641,8 +681,8 @@ public:
         else
         {
             //create image particles
-            __picKernelArea_ELEM(kernelPaintParticles3D<typename PMacc::math::CT::make_Int<simDim,1>::type>)( *cellDescription, CORE + BORDER)
-                (SuperCellSize::toRT().toDim3(),1, blockSize2D.productOfComponents() * sizeof (float_X))
+            __picKernelArea(kernelPaintParticles3D<>)( *cellDescription, CORE + BORDER)
+                (SuperCellSize::toRT().toDim3(),blockSize2D.productOfComponents() * sizeof (float_X))
                 (particles->getDeviceParticlesBox(),
                  img->getDeviceBuffer().getDataBox(),
                  m_transpose,

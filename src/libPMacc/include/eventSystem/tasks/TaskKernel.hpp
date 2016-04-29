@@ -29,7 +29,7 @@
 
 namespace PMacc
 {
-     
+
     class TaskKernel : public StreamTask
     {
     public:
@@ -44,6 +44,7 @@ namespace PMacc
         virtual ~TaskKernel()
         {
             notify(this->myId, KERNEL, NULL);
+            //std::cout<<"finsihed "<<this->toString()<<std::endl;
         }
 
         bool executeIntern()

@@ -99,7 +99,7 @@ struct AllCombinations<T_MplSeq, T_TmpResult, false >
     /* copy last given sequence to a mpl::vector to be sure that we can later on
      * call mpl::transform even if the input sequence is mpl::range_c
      */
-    typedef typename bmpl::copy<LastElementAsSequence, bmpl::back_inserter< bmpl::vector0<> > >::type TmpVector;
+    typedef typename bmpl::copy<LastElementAsSequence, bmpl::front_inserter< bmpl::vector0<> > >::type TmpVector;
 
     typedef typename bmpl::transform< TmpVector,
     AssignToAnyElementInVector<TmpResult,
@@ -159,7 +159,7 @@ struct AllCombinations
     /* copy last given sequence to a mpl::vector to be sure that we can later on
      * call mpl::transform even if the input sequence is mpl::range_c
      */
-    typedef typename bmpl::copy<LastElementAsSequence, bmpl::back_inserter< bmpl::vector0<> > >::type TmpVector;
+    typedef typename bmpl::copy<LastElementAsSequence, bmpl::front_inserter< bmpl::vector0<> > >::type TmpVector;
 
 
 

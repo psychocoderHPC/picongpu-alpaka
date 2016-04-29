@@ -75,7 +75,7 @@ public:
                 if (MovingWindow::getInstance().isSlidingWindowActive() && i == BOTTOM) continue;
 
                 ExchangeMapping<GUARD, MappingDesc> mapper(cellDescription, i);
-                constexpr bool useElements = !cupla::OptimizeBlockElem<cupla::AccFast>::isIdentity;
+                constexpr bool useElements = cupla::traits::IsThreadSeqAcc< cupla::AccThreadSeq >::value;
                 if(useElements)
                 {
                     __cudaKernel_ELEM(kernelAbsorbBorder<SuperCellSize>)
@@ -85,8 +85,8 @@ public:
                 }
                 else
                 {
-                    __cudaKernel_ELEM(kernelAbsorbBorder<typename PMacc::math::CT::make_Int<simDim,1>::type>)
-                        (mapper.getGridDim(), mapper.getSuperCellSize(), 1)
+                    __cudaKernel(kernelAbsorbBorder<>)
+                        (mapper.getGridDim(), mapper.getSuperCellSize())
                         (deviceBox, thickness, absorber_strength,
                          mapper);
                 }
