@@ -35,11 +35,12 @@
 #include "plugins/PositionsParticles.hpp"
 #include "plugins/BinEnergyParticles.hpp"
 //#include "plugins/ChargeConservation.hpp"
+#if 0
 #if(ENABLE_HDF5 == 1)
 #include "plugins/particleCalorimeter/ParticleCalorimeter.hpp"
 #include "plugins/PhaseSpace/PhaseSpaceMulti.hpp"
 #endif
-
+#endif
 #if (ENABLE_INSITU_VOLVIS == 1)
 #include "plugins/InSituVolumeRenderer.hpp"
 #endif
@@ -173,10 +174,12 @@ private:
 #if(PIC_ENABLE_PNG==1)
      , PngPlugin< Visualisation<bmpl::_1, PngCreator> >
 #endif
+#if 0
 #if(ENABLE_HDF5 == 1)
       , ParticleCalorimeter<bmpl::_1>
       , PerSuperCell<bmpl::_1>
       , PhaseSpaceMulti<particles::shapes::Counter::ChargeAssignment, bmpl::_1>
+#endif
 #endif
     > UnspecializedSpeciesPlugins;
 

@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include "mappings/threads/ThreadCollective.hpp"
 #include "mappings/elements/Vectorize.hpp"
 
 namespace picongpu
@@ -29,7 +30,8 @@ namespace yeeSolver
 {
 using namespace PMacc;
 
-template<typename T_ElemSize, class BlockDescription_, class CurlType_>
+template<class BlockDescription_, class CurlType_,
+         typename T_ElemSize = typename PMacc::math::CT::make_Int<simDim,1>::type::vector_type>
 struct kernelUpdateE
 {
 template<class EBox, class BBox, class Mapping, typename T_Acc>
@@ -45,24 +47,22 @@ DINLINE void operator()(const T_Acc& acc, EBox fieldE, BBox fieldB, Mapping mapp
     const DataSpace<simDim > threadIndex( DataSpace<simDim >(threadIdx) * T_ElemSize::toRT() );
     PMACC_AUTO(fieldBBlock, fieldB.shift(blockCell));
 
-    static constexpr int stride =
+    constexpr int stride =
         PMacc::math::CT::volume<MappingDesc::SuperCellSize>::type::value /
         PMacc::math::CT::volume<T_ElemSize>::type::value;
 
     namespace mapElem = mappings::elements;
 
-    mapElem::vectorize<simDim>(
-        [&]( const DataSpace<simDim>& idx )
-        {
-            ThreadCollective<BlockDescription_, stride> collective(threadIndex + idx);
-            collective(
-                assign,
-                cachedB,
-                fieldBBlock
-            );
-        },
-        T_ElemSize::toRT(),
-        mapElem::Contiguous()
+
+    /* \todo write me generic
+     * kernel kann support (blockSize,elemSize) with (1,N) or (N,1)
+     * therefore `threadIndex` which is strided can be used
+     */
+    ThreadCollective<BlockDescription_, stride> collective(threadIndex);
+    collective(
+        assign,
+        cachedB,
+        fieldBBlock
     );
 
     __syncthreads();
@@ -84,7 +84,8 @@ DINLINE void operator()(const T_Acc& acc, EBox fieldE, BBox fieldB, Mapping mapp
 };
 
 
-template<typename T_ElemSize, class BlockDescription_, class CurlType_ >
+template<class BlockDescription_, class CurlType_,
+         typename T_ElemSize = typename PMacc::math::CT::make_Int<simDim,1>::type::vector_type>
 struct kernelUpdateBHalf
 {
 template< class EBox, class BBox, class Mapping, typename T_Acc>
@@ -102,25 +103,22 @@ DINLINE void operator()(const T_Acc& acc,
     const DataSpace<simDim > threadIndex( DataSpace<simDim >(threadIdx) * T_ElemSize::toRT() );
     PMACC_AUTO(fieldEBlock, fieldE.shift(blockCell));
 
-    static constexpr int stride =
+    constexpr int stride =
         PMacc::math::CT::volume<MappingDesc::SuperCellSize>::type::value /
         PMacc::math::CT::volume<T_ElemSize>::type::value;
 
     namespace mapElem = mappings::elements;
 
-    mapElem::vectorize<simDim>(
-        [&]( const DataSpace<simDim>& idx )
-        {
-            ThreadCollective<BlockDescription_, stride> collective(threadIndex + idx);
-            collective(
-                      assign,
-                      cachedE,
-                      fieldEBlock
-                      );
-        },
-        T_ElemSize::toRT(),
-        mapElem::Contiguous()
-    );
+    /* \todo write me generic
+     * kernel kann support (blockSize,elemSize) with (1,N) or (N,1)
+     * therefore `threadIndex` which is strided can be used
+     */
+    ThreadCollective<BlockDescription_, stride> collective(threadIndex);
+    collective(
+              assign,
+              cachedE,
+              fieldEBlock
+              );
 
     __syncthreads();
 
@@ -132,8 +130,7 @@ DINLINE void operator()(const T_Acc& acc,
         {
             fieldB(blockCell + threadIndex + idx) -= curl(cachedE.shift(threadIndex + idx)) * float_X(0.5) * dt;
         },
-        T_ElemSize::toRT(),
-        mapElem::Contiguous()
+        T_ElemSize::toRT()
     );
 }
 };

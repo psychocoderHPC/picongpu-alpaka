@@ -58,7 +58,7 @@ namespace fieldSolver = PARAM_FIELDSOLVER;
 
 /*enable (1) or disable (0) current calculation*/
 #ifndef ENABLE_CURRENT
-#define ENABLE_CURRENT 0
+#define ENABLE_CURRENT 1
 #endif
 
 }

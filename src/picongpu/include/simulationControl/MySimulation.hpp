@@ -345,7 +345,7 @@ public:
 
 
         /* add CUDA streams to the StreamController for concurrent execution */
-        Environment<>::get().StreamController().addStreams(6);
+        Environment<>::get().StreamController().addStreams(2);
 
         // create factory for the random number generator
         this->rngFactory = new RNGFactory(Environment<simDim>::get().SubGrid().getLocalDomain().size);
@@ -403,8 +403,8 @@ public:
             else
             {
                 initialiserController->init();
-                //ForEach<particles::InitPipeline, particles::CallFunctor<bmpl::_1> > initSpecies;
-                //initSpecies(forward(particleStorage), step);
+                ForEach<particles::InitPipeline, particles::CallFunctor<bmpl::_1> > initSpecies;
+                initSpecies(forward(particleStorage), step);
             }
         }
 
@@ -469,7 +469,7 @@ public:
                 MakeIdentifier<bmpl::_1> > synchrotronRadiation;
         synchrotronRadiation(forward(particleStorage), cellDescription, currentStep, this->synchrotronFunctions);
 #endif
-#if 0
+
         EventTask initEvent = __getTransactionEvent();
         EventTask updateEvent;
         EventTask commEvent;
@@ -479,7 +479,7 @@ public:
         pushAllSpecies(particleStorage, currentStep, initEvent, updateEvent, commEvent);
 
         __setTransactionEvent(updateEvent);
-#endif
+
         /** remove background field for particle pusher */
         (*pushBGField)(fieldE, nvfct::Sub(), FieldBackgroundE(fieldE->getUnit()),
                        currentStep, FieldBackgroundE::InfluenceParticlePusher);
@@ -493,7 +493,7 @@ public:
         fieldJ->assign( zeroJ );
 #endif
 
-//        __setTransactionEvent(commEvent);
+        __setTransactionEvent(commEvent);
         (*currentBGField)(fieldJ, nvfct::Add(), FieldBackgroundJ(fieldJ->getUnit()),
                           currentStep, FieldBackgroundJ::activated);
 #if (ENABLE_CURRENT == 1)
@@ -566,10 +566,10 @@ public:
 
         fieldB->reset(currentStep);
         fieldE->reset(currentStep);
-#if 0
+
         ForEach<VectorAllSpecies, particles::CallReset<bmpl::_1>, MakeIdentifier<bmpl::_1> > callReset;
         callReset(forward(particleStorage), currentStep);
-#endif
+
     }
 
     void slide(uint32_t currentStep)

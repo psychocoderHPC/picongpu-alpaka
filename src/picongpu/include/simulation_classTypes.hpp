@@ -45,7 +45,7 @@ namespace picongpu
  * @param ... parameters to pass to kernel
  */
 #define PIC_PMACC_CUDAPARAMS(...)                                                  \
-        CUPLA_KERNEL(ThePMaccKernelName)(pmacc_gridSize,pmacc_blockSize,pmacc_kernelSharedMem,pmacc_kernelStream)(__VA_ARGS__, pmacc_mapper); \
+        PMacc::startCuplaKernel<ThePMaccKernelName>(pmacc_taskKernel,pmacc_gridSize,pmacc_blockSize,pmacc_kernelSharedMem,__VA_ARGS__, pmacc_mapper); \
         PMACC_ACTIVATE_KERNEL                                                  \
     }   /*this is used if call is EventTask.waitforfinished();*/
 
@@ -58,11 +58,11 @@ namespace picongpu
  * @param ... amount of shared memory for the kernel (optional)
  */
 #define PIC_PMACC_CUDAKERNELCONFIG(block,...)                                 \
-    dim3 pmacc_gridSize(pmacc_mapper.getGridDim());                                            \
-    dim3 pmacc_blockSize(block);                                          \
+    dim3 pmacc_gridSize = pmacc_mapper.getGridDim();                                            \
+    dim3 pmacc_blockSize = block;                                          \
     /*we need +0 if VA_ARGS is empty, because we must put in a value*/         \
     size_t pmacc_kernelSharedMem = __VA_ARGS__+0;                                    \
-    auto pmacc_kernelStream = pmacc_taskKernel->getCudaStream(); PIC_PMACC_CUDAPARAMS
+    PIC_PMACC_CUDAPARAMS
 
 #define PIC_AREA_CUDAKERNELCONFIG(description,area) \
     AreaMapping<area,MappingDesc> pmacc_mapper(description);                               \
@@ -83,17 +83,17 @@ namespace picongpu
     using ThePMaccKernelName = __VA_ARGS__; PIC_AREA_CUDAKERNELCONFIG
 
 #define PIC_PMACC_CUDAPARAMS_ELEM(...)                                                  \
-        CUPLA_KERNEL_ELEM(ThePMaccKernelName)(pmacc_gridSize,pmacc_blockSize,pmacc_elemSize,pmacc_kernelSharedMem,pmacc_kernelStream)(__VA_ARGS__, pmacc_mapper); \
+        PMacc::startCuplaKernel_ELEM<ThePMaccKernelName>(pmacc_taskKernel,pmacc_gridSize,pmacc_blockSize,pmacc_elemSize,pmacc_kernelSharedMem,__VA_ARGS__, pmacc_mapper); \
         PMACC_ACTIVATE_KERNEL                                                 \
     }   /*this is used if call is EventTask.waitforfinished();*/
 
 #define PIC_PMACC_CUDAKERNELCONFIG_ELEM(block,elem,...)                                 \
-    dim3 pmacc_gridSize(pmacc_mapper.getGridDim());                                            \
-    dim3 pmacc_blockSize(block);                                          \
+    dim3 pmacc_gridSize = pmacc_mapper.getGridDim();                                            \
+    dim3 pmacc_blockSize = block;                                          \
     dim3 pmacc_elemSize = elem;                                                      \
     /*we need +0 if VA_ARGS is empty, because we must put in a value*/         \
     size_t pmacc_kernelSharedMem = __VA_ARGS__+0;                                    \
-    auto pmacc_kernelStream = pmacc_taskKernel->getCudaStream(); PIC_PMACC_CUDAPARAMS_ELEM
+    PIC_PMACC_CUDAPARAMS_ELEM
 
 #define PIC_AREA_CUDAKERNELCONFIG_ELEM(description,area) \
     AreaMapping<area,MappingDesc> pmacc_mapper(description);                               \
@@ -117,16 +117,16 @@ namespace picongpu
 
 
 #define PIC_PMACC_CUDAPARAMS_OPTI(...)                                                  \
-        CUPLA_KERNEL_OPTI(ThePMaccKernelName)(pmacc_gridSize,pmacc_blockSize,pmacc_kernelSharedMem,pmacc_kernelStream)(__VA_ARGS__, pmacc_mapper); \
+        PMacc::startCuplaKernel_OPTI<ThePMaccKernelName>(pmacc_taskKernel,pmacc_gridSize,pmacc_blockSize,pmacc_kernelSharedMem,__VA_ARGS__, pmacc_mapper); \
         PMACC_ACTIVATE_KERNEL                                                 \
     }   /*this is used if call is EventTask.waitforfinished();*/
 
 #define PIC_PMACC_CUDAKERNELCONFIG_OPTI(block,...)                                 \
-    dim3 pmacc_gridSize(pmacc_mapper.getGridDim());                                            \
-    dim3 pmacc_blockSize(block);                                          \
+    dim3 pmacc_gridSize = pmacc_mapper.getGridDim();                                            \
+    dim3 pmacc_blockSize = block;                                          \
     /*we need +0 if VA_ARGS is empty, because we must put in a value*/         \
     size_t pmacc_kernelSharedMem = __VA_ARGS__+0;                                    \
-    auto pmacc_kernelStream = pmacc_taskKernel->getCudaStream(); PIC_PMACC_CUDAPARAMS_OPTI
+    PIC_PMACC_CUDAPARAMS_OPTI
 
 #define PIC_AREA_CUDAKERNELCONFIG_OPTI(description,area) \
     AreaMapping<area,MappingDesc> pmacc_mapper(description);                               \

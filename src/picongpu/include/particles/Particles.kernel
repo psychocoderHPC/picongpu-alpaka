@@ -48,16 +48,23 @@
 #include "nvidia/atomic.hpp"
 #include "particles/InterpolationForPusher.hpp"
 
+#include "math/Vector.hpp"
+#include "mappings/elements/Vectorize.hpp"
+#include "memory/dataTypes/Array.hpp"
+
 namespace picongpu
 {
 
 using namespace PMacc;
 
+template< int T_elemSize = 1 >
 struct kernelDeriveParticles
 {
 template<class T_MyParBox, class T_OtherFrameBox, class T_ManipulateFunctor, class Mapping, typename T_Acc>
 DINLINE void operator()(const T_Acc& acc, T_MyParBox myBox, T_OtherFrameBox otherBox, T_ManipulateFunctor manipulateFunctor, Mapping mapper) const
 {
+    namespace mapElem = mappings::elements;
+
     using namespace PMacc::particles::operations;
     typedef typename T_MyParBox::FramePtr MyFramePtr;
     typedef typename T_OtherFrameBox::FramePtr OtherFramePtr;
@@ -71,8 +78,9 @@ DINLINE void operator()(const T_Acc& acc, T_MyParBox myBox, T_OtherFrameBox othe
 
 
     const DataSpace<Mapping::Dim> block = mapper.getSuperCellIndex(DataSpace<simDim > (blockIdx));
+    const int stridedLinearThreadIdx = threadIdx.x * T_elemSize;
 
-    if (threadIdx.x == 0)
+    if (stridedLinearThreadIdx == 0)
     {
         frame = otherBox.getFirstFrame(block);
         if (frame.isValid())
@@ -84,20 +92,26 @@ DINLINE void operator()(const T_Acc& acc, T_MyParBox myBox, T_OtherFrameBox othe
     __syncthreads();
     while (frame.isValid()) //move over all Frames
     {
-        PMACC_AUTO(parDest, myFrame[threadIdx.x]);
-        PMACC_AUTO(parSrc, frame[threadIdx.x]);
-        assign(parDest, deselect<particleId>(parSrc));
+        mapElem::vectorize<DIM1>(
+            [&]( const int idx )
+            {
+                const int linearThreadIdx = stridedLinearThreadIdx + idx;
+                PMACC_AUTO(parDest, myFrame[linearThreadIdx]);
+                PMACC_AUTO(parSrc, frame[linearThreadIdx]);
+                assign(parDest, parSrc);
 
-        const DataSpace<simDim> localCellIdx = block * SuperCellSize::toRT()
-            + DataSpaceOperations<simDim>::map<SuperCellSize>(threadIdx.x)
-            - mapper.getGuardingSuperCells() * SuperCellSize::toRT();
-        manipulateFunctor(acc, localCellIdx,
-                          parDest, parSrc,
-                          true, parSrc[multiMask_] == 1);
-
+                const DataSpace<simDim> localCellIdx = block
+                    + DataSpaceOperations<simDim>::map<SuperCellSize>(linearThreadIdx)
+                    - mapper.getGuardingSuperCells() * SuperCellSize::toRT();
+                manipulateFunctor(acc, localCellIdx,
+                                  parDest, parSrc,
+                                  true, parSrc[multiMask_] == 1);
+            },
+            T_elemSize
+        );
         __syncthreads();
 
-        if (threadIdx.x == 0)
+        if (stridedLinearThreadIdx == 0)
         {
             myBox.setAsLastFrame(acc, myFrame, block);
 
@@ -112,62 +126,59 @@ DINLINE void operator()(const T_Acc& acc, T_MyParBox myBox, T_OtherFrameBox othe
 }
 };
 
+template< typename T_ElemSize = typename PMacc::math::CT::make_Int<simDim,1>::type::vector_type >
 struct kernelManipulateAllParticles
 {
 /* kernel must called with one dimension for blockSize */
 template<typename T_ParticleFunctor,typename T_ParBox,  class Mapping, typename T_Acc>
 DINLINE void operator()(const T_Acc& acc,
-                                             T_ParBox pb,
-                                             T_ParticleFunctor particleFunctor,
-                                             Mapping mapper) const
+                         T_ParBox pb,
+                         T_ParticleFunctor particleFunctor,
+                         Mapping mapper) const
 {
+    namespace mapElem = mappings::elements;
+
     typedef typename T_ParBox::FramePtr FramePtr;
-    sharedMem(frame, typename PMacc::traits::GetEmptyDefaultConstructibleType<FramePtr>::type);
+    FramePtr frame;
 
     typedef typename Mapping::SuperCellSize SuperCellSize;
 
-
-    const DataSpace<simDim > threadIndex(threadIdx);
-    const int linearThreadIdx = DataSpaceOperations<simDim>::template map<SuperCellSize > (threadIndex);
+    const DataSpace<simDim > stridedThreadIndex( DataSpace<simDim >(threadIdx) * T_ElemSize::toRT() );
 
     const DataSpace<simDim> superCellIdx(mapper.getSuperCellIndex(DataSpace<simDim > (blockIdx)));
 
-    if (linearThreadIdx == 0)
-    {
-        frame = pb.getLastFrame(superCellIdx);
-    }
+    frame = pb.getLastFrame(superCellIdx);
 
-    __syncthreads();
     if (!frame.isValid())
         return; //end kernel if we have no frames
 
-    /* BUGFIX to issue #538
-     * volatile prohibits that the compiler creates wrong code*/
-    volatile bool isParticle = (*frame)[linearThreadIdx][multiMask_];
+    lcellId_t particlesInSuperCell = pb.getSuperCell(superCellIdx).getSizeLastFrame();
 
-    const DataSpace<simDim> idx(superCellIdx * SuperCellSize::toRT() + threadIndex);
-    const DataSpace<simDim> localCellIdx = idx - mapper.getGuardingSuperCells() * SuperCellSize::toRT();
-
-
-    __syncthreads();
+    const DataSpace<simDim> dataBlockCell(superCellIdx * SuperCellSize::toRT());
+    const DataSpace<simDim> blockCell = dataBlockCell - mapper.getGuardingSuperCells() * SuperCellSize::toRT();
 
     while (frame.isValid())
     {
-        PMACC_AUTO(particle, frame[linearThreadIdx]);
-        particleFunctor(acc, localCellIdx, particle, particle, isParticle, isParticle);
+        mapElem::vectorize<simDim>(
+            [&]( const DataSpace<simDim>& idx )
+            {
+                const DataSpace<simDim> threadIndex( stridedThreadIndex + idx );
+                const DataSpace<simDim> cellIndex = blockCell + threadIndex;
+                const int linearThreadIdx = DataSpaceOperations<simDim>::template map<SuperCellSize > (threadIndex);
 
-        __syncthreads();
-        if (linearThreadIdx == 0)
-        {
-            frame = pb.getPreviousFrame(frame);
-        }
-        isParticle = true;
-        __syncthreads();
+                PMACC_AUTO(particle, frame[linearThreadIdx]);
+                bool isParticle = (linearThreadIdx < particlesInSuperCell);
+                particleFunctor(acc, cellIndex, particle, particle, isParticle, isParticle);
+            },
+            T_ElemSize::toRT()
+        );
+        frame = pb.getPreviousFrame(frame);
+        particlesInSuperCell = PMacc::math::CT::volume<SuperCellSize>::type::value;
     }
 }
 };
 
-template<typename BlockDescription_>
+template<typename BlockDescription_, typename T_ElemSize = typename PMacc::math::CT::make_Int<simDim,1>::type::vector_type>
 struct kernelMoveAndMarkParticles
 {
 template< class ParBox, class BBox, class EBox, class Mapping, class FrameSolver, typename T_Acc>
@@ -178,6 +189,8 @@ DINLINE void operator()(const T_Acc& acc,
                                            FrameSolver frameSolver,
                                            Mapping mapper) const
 {
+    namespace mapElem = mappings::elements;
+
     /* definitions for domain variables, like indices of blocks and threads
      *
      * conversion from block to linear frames */
@@ -187,26 +200,22 @@ DINLINE void operator()(const T_Acc& acc,
     const DataSpace<simDim> block(mapper.getSuperCellIndex(DataSpace<simDim > (blockIdx)));
 
 
-    const DataSpace<simDim > threadIndex(threadIdx);
-    const int linearThreadIdx = DataSpaceOperations<simDim>::template map<SuperCellSize > (threadIndex);
+    const DataSpace<simDim > threadIndex( DataSpace<simDim >(threadIdx) * T_ElemSize::toRT() );
+    const int stridedLinearThreadIdx = DataSpaceOperations<simDim>::template map<SuperCellSize > (threadIndex);
 
 
     const DataSpace<simDim> blockCell = block * SuperCellSize::toRT();
 
-
-
     FramePtr frame;
 
     sharedMem(mustShift, int);
-    lcellId_t particlesInSuperCell;
 
-
-    if (linearThreadIdx == 0)
+    if (stridedLinearThreadIdx == 0)
     {
         mustShift = 0;
     }
     frame = pb.getLastFrame(block);
-    particlesInSuperCell = pb.getSuperCell(block).getSizeLastFrame();
+    lcellId_t particlesInSuperCell = pb.getSuperCell(block).getSizeLastFrame();
 
     PMACC_AUTO(cachedB, CachedBox::create < 0, typename BBox::ValueType > (acc, BlockDescription_()));
     PMACC_AUTO(cachedE, CachedBox::create < 1, typename EBox::ValueType > (acc, BlockDescription_()));
@@ -215,39 +224,53 @@ DINLINE void operator()(const T_Acc& acc,
     if (!frame.isValid())
         return; //end kernel if we have no frames
 
+    constexpr int stride =
+        PMacc::math::CT::volume<SuperCellSize>::type::value /
+        PMacc::math::CT::volume<T_ElemSize>::type::value;
 
     PMACC_AUTO(fieldBBlock, fieldB.shift(blockCell));
+    PMACC_AUTO(fieldEBlock, fieldE.shift(blockCell));
 
+    /* \todo write me generic
+     * kernel kann support (blockSize,elemSize) with (1,N) or (N,1)
+     * therefore `threadIndex` which is strided can be used
+     */
     nvidia::functors::Assign assign;
-    ThreadCollective<BlockDescription_> collective(linearThreadIdx);
+    ThreadCollective<BlockDescription_,stride> collective(threadIndex);
     collective(
               assign,
               cachedB,
               fieldBBlock
               );
-
-    PMACC_AUTO(fieldEBlock, fieldE.shift(blockCell));
     collective(
               assign,
               cachedE,
               fieldEBlock
               );
+
     __syncthreads();
 
     /*move over frames and call frame solver*/
     while (frame.isValid())
     {
-        if (linearThreadIdx < particlesInSuperCell)
-        {
-            frameSolver(acc, *frame, linearThreadIdx, cachedB, cachedE, mustShift);
-        }
+        mapElem::vectorize<simDim>(
+            [&]( const DataSpace<simDim>& idx )
+            {
+                const int linearThreadIdx = DataSpaceOperations<simDim>::template map<SuperCellSize > (threadIndex + idx);
+                if (linearThreadIdx < particlesInSuperCell)
+                {
+                    frameSolver(acc, *frame, linearThreadIdx, cachedB, cachedE, mustShift);
+                }
+            },
+            T_ElemSize::toRT()
+        );
         frame = pb.getPreviousFrame(frame);
         particlesInSuperCell = PMacc::math::CT::volume<SuperCellSize>::type::value;
 
     }
     __syncthreads();
     /*set in SuperCell the mustShift flag which is a optimization for shift particles and fillGaps*/
-    if (linearThreadIdx == 0 && mustShift == 1)
+    if (stridedLinearThreadIdx == 0 && mustShift == 1)
     {
         pb.getSuperCell(mapper.getSuperCellIndex(DataSpace<simDim > (blockIdx))).setMustShift(true);
     }
@@ -400,8 +423,12 @@ struct PushParticlePerFrame
          */
         if (direction >= 2)
         {
+#if (PMACC_CUDA_ENABLED == 1)
             /* if we did not use atomic we would get a WAW error */
             nvidia::atomicAllExch(acc, &mustShift, 1);
+#else
+            mustShift = 1;
+#endif
         }
     }
 };
