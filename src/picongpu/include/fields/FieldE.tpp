@@ -201,7 +201,7 @@ void FieldE::laserManipulation( uint32_t currentStep )
     gridBlocks.y()=fieldE->getGridLayout( ).getDataSpaceWithoutGuarding( ).z( ) / SuperCellSize::z::value;
     blockSize.y()=SuperCellSize::z::value;
 #endif
-    constexpr bool useElements = !cupla::OptimizeBlockElem<cupla::AccFast>::isIdentity;
+    constexpr bool useElements = cupla::traits::IsThreadSeqAcc< cupla::AccThreadSeq >::value;
     if(useElements)
     {
         __cudaKernel_ELEM( kernelLaserE<SuperCellSize> )
@@ -214,11 +214,10 @@ void FieldE::laserManipulation( uint32_t currentStep )
     }
     else
     {
-        __cudaKernel_ELEM( kernelLaserE<typename PMacc::math::CT::make_Int<simDim,1>::type> )
+        __cudaKernel( kernelLaserE<> )
             (
                 gridBlocks,
-                blockSize,
-                1
+                blockSize
             )
             ( this->getDeviceDataBox( ), laser->getLaserManipulator( currentStep ) );
     }

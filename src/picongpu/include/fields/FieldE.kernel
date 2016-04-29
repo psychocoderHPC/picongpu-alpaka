@@ -35,7 +35,7 @@ namespace picongpu
 {
 using namespace PMacc;
 
-template< typename T_ElemSize >
+template< typename T_ElemSize = typename PMacc::math::CT::make_Int<simDim,1>::type::vector_type >
 struct kernelLaserE
 {
 template<class EBox, typename T_Acc>
@@ -91,8 +91,7 @@ DINLINE void operator()(const T_Acc& acc, EBox fieldE, LaserManipulator lMan) co
                 fieldE(dataCellOffset + guardSize) = lMan.getManipulation(dataCellOffset);
             }
         },
-        T_ElemSize::toRT(),
-        mapElem::Contiguous()
+        T_ElemSize::toRT()
     );
 
 }

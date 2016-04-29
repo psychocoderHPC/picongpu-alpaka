@@ -81,7 +81,7 @@ getValue(T_Type& value)
 
 }
 
-template< size_t T_elemSizeX>
+template< size_t T_elemSizeX = 1>
 struct kernelSetValue
 {
 template <typename T_Acc, class DataBox, typename T_ValueType, typename Space>
@@ -210,7 +210,7 @@ public:
 
         if(gridSize.x * gridSize.y * gridSize.z != 0 )
         {
-            constexpr bool useElements = !cupla::OptimizeBlockElem<cupla::AccFast>::isIdentity;
+            constexpr bool useElements = cupla::traits::IsThreadSeqAcc< cupla::AccThreadSeq >::value;
             if(useElements)
             {
                 CUPLA_KERNEL_ELEM(kernelSetValue< 256 >)
@@ -219,7 +219,7 @@ public:
             }
             else
             {
-                CUPLA_KERNEL_ELEM(kernelSetValue< 1 >)
+                CUPLA_KERNEL_ELEM(kernelSetValue< >)
                     (gridSize, 256, 1, 0, this->getCudaStream())
                     (this->destination->getDataBox(), this->value, area_size);
             }
@@ -276,7 +276,7 @@ public:
             CUDA_CHECK(cudaMemcpyAsync(
                                        devicePtr, valuePointer_host, sizeof (ValueType),
                                        cudaMemcpyHostToDevice, this->getCudaStream()));
-            constexpr bool useElements = !cupla::OptimizeBlockElem<cupla::AccFast>::isIdentity;
+            constexpr bool useElements = cupla::traits::IsThreadSeqAcc< cupla::AccThreadSeq >::value;
             if(useElements)
             {
                 CUPLA_KERNEL_ELEM(kernelSetValue< 256 >)
@@ -285,7 +285,7 @@ public:
             }
             else
             {
-                CUPLA_KERNEL_ELEM(kernelSetValue< 1 >)
+                CUPLA_KERNEL_ELEM(kernelSetValue<  >)
                 (gridSize, 256, 1, 0, this->getCudaStream() )
                 (this->destination->getDataBox(), devicePtr, area_size);
             }

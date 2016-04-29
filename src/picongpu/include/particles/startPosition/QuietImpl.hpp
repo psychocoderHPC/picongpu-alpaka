@@ -45,6 +45,8 @@ struct QuietImpl
         typedef QuietImpl<ParamClass> type;
     };
 
+    HDINLINE QuietImpl() = default;
+
     HINLINE QuietImpl(uint32_t): numParInCell(ParamClass::numParticlesPerDimension::toRT())
     {
     }

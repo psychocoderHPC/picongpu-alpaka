@@ -70,21 +70,21 @@ namespace PMacc
                             const uint32_t tid = g_tid + idx;
                             const uint32_t localId = g_localId + idx;
 
-                    bool isActive = (tid < src_count);
+                            bool isActive = (tid < src_count);
 
-                    if(isActive)
-                    {
-                        /*fill shared mem*/
-                        Type r_value = src[tid];
-                        /*reduce not read global memory to shared*/
-                        uint32_t i = tid + globalThreadCount;
-                        while (i < src_count)
-                        {
-                            func(r_value, src[i]);
-                            i += globalThreadCount;
-                        }
-                        s_mem[localId] = r_value;
-                    }
+                            if(isActive)
+                            {
+                                /*fill shared mem*/
+                                Type r_value = src[tid];
+                                /*reduce not read global memory to shared*/
+                                uint32_t i = tid + globalThreadCount;
+                                while (i < src_count)
+                                {
+                                    func(r_value, src[i]);
+                                    i += globalThreadCount;
+                                }
+                                s_mem[localId] = r_value;
+                            }
                         },
                         elemDim.x,
                         mapElem::Contiguous()
@@ -108,10 +108,10 @@ namespace PMacc
                                 const uint32_t tid = g_tid + idx;
                                 const uint32_t localId = g_localId + idx;
 
-                        bool isActive = (tid < src_count);
-                        isActive = isActive && !(localId != 0 && localId >= active_threads);
-                        if(isActive)
-                            func(s_mem[localId], s_mem[localId + chunk_count]);
+                                bool isActive = (tid < src_count);
+                                isActive = isActive && !(localId != 0 && localId >= active_threads);
+                                if(isActive)
+                                    func(s_mem[localId], s_mem[localId + chunk_count]);
                             },
                             elemDim.x,
                             mapElem::Contiguous()
@@ -175,7 +175,7 @@ namespace PMacc
 
                     uint32_t blocks = threads / 2 / blockcount;
                     if (blocks == 0) blocks = 1;
-                    __cudaKernel(kernel::reduce< Type >)(blocks, blockcount, blockcount * sizeof (Type))(src, n, dest, func,
+                    __cudaKernel_OPTI(kernel::reduce< Type >)(blocks, blockcount, blockcount * sizeof (Type))(src, n, dest, func,
                                                                                                             PMacc::nvidia::functors::Assign());
                     n = blocks;
                     blockcount = optimalThreadsPerBlock(n, sizeof (Type));
@@ -192,13 +192,13 @@ namespace PMacc
                             uint32_t problemSize = n - (blockOffset * blockcount);
                             Type* srcPtr = dest + (blockOffset * blockcount);
 
-                            __cudaKernel(kernel::reduce< Type >)(useBlocks, blockcount, blockcount * sizeof (Type))(srcPtr, problemSize, dest, func, func);
+                            __cudaKernel_OPTI(kernel::reduce< Type >)(useBlocks, blockcount, blockcount * sizeof (Type))(srcPtr, problemSize, dest, func, func);
                             blocks = blockOffset*blockcount;
                         }
                         else
                         {
 
-                            __cudaKernel(kernel::reduce< Type >)(blocks, blockcount, blockcount * sizeof (Type))(dest, n, dest, func,
+                            __cudaKernel_OPTI(kernel::reduce< Type >)(blocks, blockcount, blockcount * sizeof (Type))(dest, n, dest, func,
                                                                                                                     PMacc::nvidia::functors::Assign());
                         }
 

@@ -34,7 +34,6 @@
 #include "simulation_classTypes.hpp"
 #include "memory/boxes/SharedBox.hpp"
 #include "nvidia/functors/Assign.hpp"
-#include "mappings/threads/ThreadCollective.hpp"
 #include "memory/boxes/CachedBox.hpp"
 #include "dimensions/DataSpace.hpp"
 #include <fields/FieldE.hpp>
@@ -74,17 +73,17 @@ private:
                 typename CurlB::UpperMargin
                 > BlockArea;
 
-        constexpr bool useElements = !cupla::OptimizeBlockElem<cupla::AccFast>::isIdentity;
+        constexpr bool useElements = cupla::traits::IsThreadSeqAcc< cupla::AccThreadSeq >::value;
         if(useElements)
         {
-            __picKernelArea_ELEM(kernelUpdateE<SuperCellSize, BlockArea, CurlB>)( m_cellDescription, AREA)
+            __picKernelArea_ELEM(kernelUpdateE<BlockArea, CurlB, SuperCellSize>)( m_cellDescription, AREA)
                 (1, SuperCellSize::toRT().toDim3())
                 (this->fieldE->getDeviceDataBox(), this->fieldB->getDeviceDataBox());
         }
         else
         {
-            __picKernelArea_ELEM(kernelUpdateE<typename PMacc::math::CT::make_Int<simDim,1>::type, BlockArea, CurlB>)( m_cellDescription, AREA)
-                (SuperCellSize::toRT().toDim3(), 1)
+            __picKernelArea(kernelUpdateE<BlockArea, CurlB>)( m_cellDescription, AREA)
+                (SuperCellSize::toRT().toDim3())
                 (this->fieldE->getDeviceDataBox(), this->fieldB->getDeviceDataBox());
         }
     }
@@ -98,18 +97,18 @@ private:
                 typename CurlE::UpperMargin
                 > BlockArea;
 
-        constexpr bool useElements = !cupla::OptimizeBlockElem<cupla::AccFast>::isIdentity;
+        constexpr bool useElements = cupla::traits::IsThreadSeqAcc< cupla::AccThreadSeq >::value;
         if(useElements)
         {
-            __picKernelArea_ELEM(kernelUpdateBHalf<SuperCellSize, BlockArea, CurlE>)( m_cellDescription, AREA)
+            __picKernelArea_ELEM(kernelUpdateBHalf<BlockArea, CurlE, SuperCellSize>)( m_cellDescription, AREA)
                     (1,SuperCellSize::toRT().toDim3())
                     (this->fieldB->getDeviceDataBox(),
                     this->fieldE->getDeviceDataBox());
         }
         else
         {
-            __picKernelArea_ELEM(kernelUpdateBHalf<typename PMacc::math::CT::make_Int<simDim,1>::type,BlockArea, CurlE>)( m_cellDescription, AREA)
-                    (SuperCellSize::toRT().toDim3(),1)
+            __picKernelArea(kernelUpdateBHalf<BlockArea, CurlE>)( m_cellDescription, AREA)
+                    (SuperCellSize::toRT().toDim3())
                     (this->fieldB->getDeviceDataBox(),
                     this->fieldE->getDeviceDataBox());
         }

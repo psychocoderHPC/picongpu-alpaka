@@ -34,9 +34,11 @@
 namespace picongpu
 {
 
-template< class ParBox>
-__global__ void kernelAddOneParticle(ParBox pb,
-                                     DataSpace<simDim> superCell, DataSpace<simDim> parLocalCell)
+struct kernelAddOneParticle
+{
+template< class ParBox, typename T_Acc>
+DINLINE void operator()(const T_Acc& acc, ParBox pb,
+                                     DataSpace<simDim> superCell, DataSpace<simDim> parLocalCell) const
 {
     typedef typename ParBox::FramePtr FramePtr;
 
@@ -47,7 +49,7 @@ __global__ void kernelAddOneParticle(ParBox pb,
     float_X parWeighting = particles::TYPICAL_NUM_PARTICLES_PER_MACROPARTICLE;
 
     frame = pb.getEmptyFrame();
-    pb.setAsLastFrame(frame, superCell);
+    pb.setAsLastFrame(acc, frame, superCell);
 
 
 
@@ -96,6 +98,7 @@ __global__ void kernelAddOneParticle(ParBox pb,
 #endif
     }
 }
+};
 
 template<class ParticlesClass>
 class ParticlesInitOneParticle
