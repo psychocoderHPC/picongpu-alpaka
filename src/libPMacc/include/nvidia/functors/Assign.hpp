@@ -22,8 +22,6 @@
 
 #pragma once
 
-#include "pmacc_types.hpp"
-
 namespace PMacc
 {
     namespace nvidia
@@ -34,8 +32,8 @@ namespace PMacc
             struct Assign
             {
 
-                template<typename Dst, typename Src >
-                        HDINLINE void operator()(Dst & dst, const Src & src) const
+                template<typename T_Dst, typename T_Src >
+                        HDINLINE void operator()(T_Dst & dst, const T_Src & src) const
                 {
                     dst = src;
                 }
