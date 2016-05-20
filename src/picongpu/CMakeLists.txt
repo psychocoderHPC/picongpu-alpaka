@@ -58,7 +58,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED on)
 # Find cupla
 ################################################################################
 
-SET(cupla_ROOT "$ENV{CUPLA_ROOT}" CACHE STRING  "The location of the cupla library")
+SET(cupla_ROOT $ENV{CUPLA_ROOT} CACHE PATH  "The location of the cupla library" FORCE)
 
 LIST(APPEND CMAKE_MODULE_PATH "${cupla_ROOT}")
 FIND_PACKAGE("cupla" REQUIRED)
