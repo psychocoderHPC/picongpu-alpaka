@@ -161,11 +161,7 @@ DINLINE void operator()( const T_Acc& acc, T_ParBox pb, Mapping mapper ) const
                 directionArray[idx] = frame[linearThreadIdx][multiMask_] - 2;
                 if ( directionArray[idx] >= 0 )
                 {
-#if (PMACC_CUDA_ENABLED == 1)
-                    destParticleIdxArray[idx] = atomicAdd( &(destFramesCounter[ directionArray[idx] ]), 1 );
-#else
-                    destParticleIdxArray[idx] = destFramesCounter[ directionArray[idx] ]++;
-#endif
+                    destParticleIdxArray[idx] = atomicAdd( &(destFramesCounter[ directionArray[idx] ]), 1 , ::alpaka::hierarchy::Threads() );
                 }
             },
             T_elemSize

@@ -32,6 +32,9 @@ namespace manipulators
 template<typename T_Base>
 struct IManipulator;
 
+template<typename T_Base>
+struct IManipulatorDevice;
+
 } //namespace manipulators
 } //namespace particles
 } //namespace picongpu

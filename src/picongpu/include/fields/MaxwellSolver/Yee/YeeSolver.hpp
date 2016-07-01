@@ -76,8 +76,8 @@ private:
         constexpr bool useElements = cupla::traits::IsThreadSeqAcc< cupla::AccThreadSeq >::value;
         if(useElements)
         {
-            __picKernelArea_ELEM(kernelUpdateE<BlockArea, CurlB, SuperCellSize>)( m_cellDescription, AREA)
-                (1, SuperCellSize::toRT().toDim3())
+            __picKernelArea_OPTI(kernelUpdateE<BlockArea, CurlB, SuperCellSize>)( m_cellDescription, AREA)
+                (SuperCellSize::toRT().toDim3())
                 (this->fieldE->getDeviceDataBox(), this->fieldB->getDeviceDataBox());
         }
         else
@@ -100,8 +100,8 @@ private:
         constexpr bool useElements = cupla::traits::IsThreadSeqAcc< cupla::AccThreadSeq >::value;
         if(useElements)
         {
-            __picKernelArea_ELEM(kernelUpdateBHalf<BlockArea, CurlE, SuperCellSize>)( m_cellDescription, AREA)
-                    (1,SuperCellSize::toRT().toDim3())
+            __picKernelArea_OPTI(kernelUpdateBHalf<BlockArea, CurlE, SuperCellSize>)( m_cellDescription, AREA)
+                    (SuperCellSize::toRT().toDim3())
                     (this->fieldB->getDeviceDataBox(),
                     this->fieldE->getDeviceDataBox());
         }

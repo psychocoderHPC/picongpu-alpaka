@@ -33,19 +33,15 @@ namespace startPosition
 {
 
 template<typename T_Base>
-struct IFunctor : private T_Base
+struct IFunctorDevice : public T_Base
 {
     typedef T_Base Base;
-    HDINLINE IFunctor() = default;
-    
-    HINLINE IFunctor(uint32_t currentStep) : Base(currentStep)
-    {
-    }
 
-    template<typename T_Acc>
-    DINLINE void init(const T_Acc& acc, const DataSpace<simDim>& totalCellOffset)
+    DINLINE IFunctorDevice() = default;
+
+    template<typename... T_Args>
+    DINLINE IFunctorDevice(const T_Args& ... args) : Base( args...)
     {
-        Base::init(acc, totalCellOffset);
     }
 
     DINLINE floatD_X operator()(const uint32_t currentParticleIdx)
@@ -56,6 +52,31 @@ struct IFunctor : private T_Base
     DINLINE MacroParticleCfg mapRealToMacroParticle(const float_X realElPerCell)
     {
         return Base::mapRealToMacroParticle(realElPerCell);
+    }
+};
+
+template<typename T_Base>
+struct IFunctor : protected T_Base
+{
+    typedef T_Base Base;
+
+    template<typename T_Acc>
+    struct Get
+    {
+        typedef IFunctorDevice<
+            typename Base::template Get<T_Acc>::type
+        > type;
+    };
+
+    template<typename T_Acc>
+    typename Get<T_Acc>::type
+    DINLINE get(const T_Acc& acc, const DataSpace<simDim>& totalCellOffset) const
+    {
+        return Base::get(acc, totalCellOffset);
+    }
+
+    HINLINE IFunctor(uint32_t currentStep) : Base(currentStep)
+    {
     }
 };
 

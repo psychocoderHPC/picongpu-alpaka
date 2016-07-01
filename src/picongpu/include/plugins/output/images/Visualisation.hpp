@@ -374,7 +374,7 @@ operator()(const T_Acc& acc,
 #endif
                     {
                         const DataSpace<DIM2> reducedCell(particleCellId[transpose.x()], particleCellId[transpose.y()]);
-                        atomicAdd(&(counter(reducedCell)), particle[weighting_] / particles::TYPICAL_NUM_PARTICLES_PER_MACROPARTICLE);
+                        atomicAdd(&(counter(reducedCell)), particle[weighting_] / particles::TYPICAL_NUM_PARTICLES_PER_MACROPARTICLE,::alpaka::hierarchy::Threads());
                     }
                 }
             },
@@ -642,7 +642,7 @@ public:
         // thus we must use a one dimension kernel and no mapper
         if(useElements)
         {
-            __cudaKernel_ELEM(vis_kernels::divideAnyCell<256>)(ceil((float_64) elements / 256), 1, 256)(d1access, elements, max);
+            __cudaKernel_OPTI(vis_kernels::divideAnyCell<256>)(ceil((float_64) elements / 256), 256)(d1access, elements, max);
         }
         else
         {
@@ -654,7 +654,7 @@ public:
         if(useElements)
         {
             // convert channels to RGB
-            __cudaKernel_ELEM(vis_kernels::channelsToRGB<256>)(ceil((float_64) elements / 256), 1, 256)(d1access, elements);
+            __cudaKernel_OPTI(vis_kernels::channelsToRGB<256>)(ceil((float_64) elements / 256), 256)(d1access, elements);
         }
         else
         {
@@ -669,8 +669,8 @@ public:
         if(useElements)
         {
             //create image particles
-            __picKernelArea_ELEM(kernelPaintParticles3D<SuperCellSize>)( *cellDescription, CORE + BORDER)
-                (1,SuperCellSize::toRT().toDim3(), blockSize2D.productOfComponents() * sizeof (float_X))
+            __picKernelArea_OPTI(kernelPaintParticles3D<SuperCellSize>)( *cellDescription, CORE + BORDER)
+                (SuperCellSize::toRT().toDim3(), blockSize2D.productOfComponents() * sizeof (float_X))
                 (particles->getDeviceParticlesBox(),
                  img->getDeviceBuffer().getDataBox(),
                  m_transpose,

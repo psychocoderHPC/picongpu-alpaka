@@ -192,8 +192,8 @@ void FieldJ::bashField( uint32_t exchangeType )
     if(useElements)
     {
         using ElemSize = typename  MappingDesc::SuperCellSize;
-        __cudaKernel_ELEM( kernelBashCurrent<ElemSize> )
-            ( grid, 1, mapper.getSuperCellSize( ) )
+        __cudaKernel_OPTI( kernelBashCurrent<ElemSize> )
+            ( grid, mapper.getSuperCellSize( ) )
             ( fieldJ.getDeviceBuffer( ).getDataBox( ),
               fieldJ.getSendExchange( exchangeType ).getDeviceBuffer( ).getDataBox( ),
               fieldJ.getSendExchange( exchangeType ).getDeviceBuffer( ).getDataSpace( ),
@@ -223,8 +223,8 @@ void FieldJ::insertField( uint32_t exchangeType )
     if(useElements)
     {
         using ElemSize = typename  MappingDesc::SuperCellSize;
-        __cudaKernel_ELEM( kernelInsertCurrent<ElemSize> )
-            ( grid, 1, mapper.getSuperCellSize( ) )
+        __cudaKernel_OPTI( kernelInsertCurrent<ElemSize> )
+            ( grid, mapper.getSuperCellSize( ) )
             ( fieldJ.getDeviceBuffer( ).getDataBox( ),
             fieldJ.getReceiveExchange( exchangeType ).getDeviceBuffer( ).getDataBox( ),
             fieldJ.getReceiveExchange( exchangeType ).getDeviceBuffer( ).getDataSpace( ),
@@ -339,8 +339,8 @@ void FieldJ::computeCurrent( ParticlesClass &parClass, uint32_t )
         if(useElements)
         {
             using ElemSize = typename  MappingDesc::SuperCellSize;
-            __cudaKernel_ELEM( kernelComputeCurrent<workerMultiplier, BlockArea, AREA, ElemSize> )
-                ( mapper.getGridDim( ), 1, blockSize )
+            __cudaKernel_OPTI( kernelComputeCurrent<workerMultiplier, BlockArea, AREA, ElemSize> )
+                ( mapper.getGridDim( ), blockSize )
                 ( jBox,
                   pBox, solver, mapper );
         }
@@ -365,10 +365,10 @@ void FieldJ::addCurrentToEMF( T_CurrentInterpolation& myCurrentInterpolation )
     if(useElements)
     {
         using ElemSize = typename  MappingDesc::SuperCellSize;
-        __picKernelArea_ELEM( kernelAddCurrentToEMF<ElemSize> )(
+        __picKernelArea_OPTI( kernelAddCurrentToEMF<ElemSize> )(
                          cellDescription,
                          AREA )
-            ( 1, MappingDesc::SuperCellSize::toRT( ).toDim3( ) )
+            ( MappingDesc::SuperCellSize::toRT( ).toDim3( ) )
             ( this->fieldE->getDeviceDataBox( ),
               this->fieldB->getDeviceDataBox( ),
               this->fieldJ.getDeviceBuffer( ).getDataBox( ),

@@ -202,7 +202,7 @@ inline Manager::Manager( )
      * already created before calling this
      */
     eventPool = new EventPool( );
-    eventPool->addEvents( 300 );
+    eventPool->addEvents( 600 );
 }
 
 inline Manager::Manager( const Manager& )

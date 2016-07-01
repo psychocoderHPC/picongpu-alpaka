@@ -213,14 +213,14 @@ public:
             constexpr bool useElements = cupla::traits::IsThreadSeqAcc< cupla::AccThreadSeq >::value;
             if(useElements)
             {
-                CUPLA_KERNEL_ELEM(kernelSetValue< 256 >)
-                    (gridSize, 1, 256, 0, this->getCudaStream())
+                CUPLA_KERNEL_OPTI(kernelSetValue< 256 >)
+                    (gridSize, 256, 0, this->getCudaStream())
                     (this->destination->getDataBox(), this->value, area_size);
             }
             else
             {
-                CUPLA_KERNEL_ELEM(kernelSetValue< >)
-                    (gridSize, 256, 1, 0, this->getCudaStream())
+                CUPLA_KERNEL(kernelSetValue< >)
+                    (gridSize, 256, 0, this->getCudaStream())
                     (this->destination->getDataBox(), this->value, area_size);
             }
 
@@ -279,14 +279,14 @@ public:
             constexpr bool useElements = cupla::traits::IsThreadSeqAcc< cupla::AccThreadSeq >::value;
             if(useElements)
             {
-                CUPLA_KERNEL_ELEM(kernelSetValue< 256 >)
-                (gridSize, 1, 256, 0, this->getCudaStream() )
+                CUPLA_KERNEL_OPTI(kernelSetValue< 256 >)
+                (gridSize, 256, 0, this->getCudaStream() )
                 (this->destination->getDataBox(), devicePtr, area_size);
             }
             else
             {
-                CUPLA_KERNEL_ELEM(kernelSetValue<  >)
-                (gridSize, 256, 1, 0, this->getCudaStream() )
+                CUPLA_KERNEL(kernelSetValue<  >)
+                (gridSize, 256, 0, this->getCudaStream() )
                 (this->destination->getDataBox(), devicePtr, area_size);
             }
 
