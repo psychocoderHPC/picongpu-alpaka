@@ -38,44 +38,22 @@ namespace startPosition
 {
 
 namespace nvrng = nvidia::rng;
-namespace rngMethods = nvidia::rng::methods;
-namespace rngDistributions = nvidia::rng::distributions;
 
-template<typename T_ParamClass, typename T_SpeciesType>
+namespace detail
+{
+template<typename T_ParamClass, typename T_SpeciesType, typename T_Rng>
 struct RandomImpl
 {
     typedef T_ParamClass ParamClass;
     typedef T_SpeciesType SpeciesType;
     typedef typename MakeIdentifier<SpeciesType>::type SpeciesName;
 
-    HDINLINE RandomImpl() = default;
-
-    HINLINE RandomImpl(uint32_t currentStep)
-    {
-        typedef typename SpeciesType::FrameType FrameType;
-
-        mpi::SeedPerRank<simDim> seedPerRank;
-        GlobalSeed globalSeed;
-        seed = globalSeed() ^
-               PMacc::traits::GetUniqueTypeId<FrameType, uint32_t>::uid() ^
-               POSITION_SEED;
-        seed = seedPerRank(seed) ^ currentStep;
-
-        const uint32_t numSlides = MovingWindow::getInstance( ).getSlideCounter( currentStep );
-        const SubGrid<simDim>& subGrid = Environment<simDim>::get().SubGrid();
-        localCells = subGrid.getLocalDomain().size;
-        totalGpuOffset = subGrid.getLocalDomain( ).offset;
-        totalGpuOffset.y( ) += numSlides * localCells.y( );
-    }
+    DINLINE RandomImpl() = default;
 
     template<typename T_Acc>
-    DINLINE void init(const T_Acc& acc, const DataSpace<simDim>& totalCellOffset)
+    DINLINE RandomImpl(const T_Acc& acc, const uint32_t seed, const uint32_t cellIdx)
     {
-        const DataSpace<simDim> localCellIdx(totalCellOffset - totalGpuOffset);
-        const uint32_t cellIdx = DataSpaceOperations<simDim>::map(
-                                                                  localCells,
-                                                                  localCellIdx);
-        rng = nvrng::create(rngMethods::Xor<T_Acc>(acc,seed, cellIdx), rngDistributions::Uniform_float<T_Acc>(acc));
+        rng = nvrng::create(typename T_Rng::MethodType(acc,seed, cellIdx), typename T_Rng::DistributionType(acc));
     }
 
     /** Distributes the initial particles uniformly random within the cell.
@@ -125,9 +103,54 @@ struct RandomImpl
     }
 
 protected:
-    typedef PMacc::nvidia::rng::RNG<rngMethods::Xor<cupla::AccThreadSeq>, rngDistributions::Uniform_float<cupla::AccThreadSeq> > RngType;
+    PMACC_ALIGN(rng, T_Rng);
+};
 
-    PMACC_ALIGN(rng, RngType);
+} //namespace detail
+
+template<typename T_ParamClass, typename T_SpeciesType>
+struct RandomImpl
+{
+    typedef T_SpeciesType SpeciesType;
+    HINLINE RandomImpl(uint32_t currentStep)
+    {
+        typedef typename SpeciesType::FrameType FrameType;
+
+        mpi::SeedPerRank<simDim> seedPerRank;
+        GlobalSeed globalSeed;
+        seed = globalSeed() ^
+               PMacc::traits::GetUniqueTypeId<FrameType, uint32_t>::uid() ^
+               POSITION_SEED;
+        seed = seedPerRank(seed) ^ currentStep;
+
+        const uint32_t numSlides = MovingWindow::getInstance( ).getSlideCounter( currentStep );
+        const SubGrid<simDim>& subGrid = Environment<simDim>::get().SubGrid();
+        localCells = subGrid.getLocalDomain().size;
+        totalGpuOffset = subGrid.getLocalDomain( ).offset;
+        totalGpuOffset.y( ) += numSlides * localCells.y( );
+    }
+
+    template<typename T_Acc>
+    struct Get
+    {
+        typedef PMacc::nvidia::rng::RNG<nvrng::methods::Xor<T_Acc>, nvrng::distributions::Uniform_float<T_Acc> > RngType;
+        typedef detail::RandomImpl<T_ParamClass, T_SpeciesType, RngType> type;
+    };
+
+    template<typename T_Acc>
+    typename Get<T_Acc>::type
+    DINLINE get(const T_Acc& acc, const DataSpace<simDim>& totalCellOffset) const
+    {
+        typedef typename Get<T_Acc>::type Functor;
+
+        const DataSpace<simDim> localCellIdx(totalCellOffset - totalGpuOffset);
+        const uint32_t cellIdx = DataSpaceOperations<simDim>::map(
+                                                                  localCells,
+                                                                  localCellIdx);
+        return Functor(acc,seed,cellIdx);
+
+    }
+
     PMACC_ALIGN(seed,uint32_t);
     PMACC_ALIGN(localCells, DataSpace<simDim>);
     PMACC_ALIGN(totalGpuOffset, DataSpace<simDim>);

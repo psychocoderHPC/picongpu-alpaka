@@ -30,25 +30,18 @@ namespace particles
 {
 namespace manipulators
 {
-
+namespace detail
+{
 template<typename T_Functor>
 struct FreeImpl
 {
 
     typedef T_Functor Functor;
 
-    template<typename T_SpeciesType>
-    struct apply
-    {
-        typedef FreeImpl<T_Functor> type;
-    };
-
-    HINLINE FreeImpl(uint32_t)
-    {
-    }
+    HINLINE FreeImpl() = default;
 
     template<typename T_Particle1, typename T_Particle2, typename T_Acc>
-    DINLINE void operator()(const T_Acc& acc, const DataSpace<simDim>&,
+    DINLINE void operator()(const T_Acc& acc,
                             T_Particle1& particleSpecies1, T_Particle2& particleSpecies2,
                             const bool isParticle1, const bool isParticle2)
     {
@@ -59,6 +52,37 @@ struct FreeImpl
         }
     }
 
+};
+
+} //namespace detail
+
+template<typename T_Functor>
+struct FreeImpl
+{
+    template<typename T_SpeciesType>
+    struct apply
+    {
+        typedef FreeImpl< T_Functor > type;
+    };
+
+    HINLINE FreeImpl(const uint32_t)
+    {
+    }
+
+    template<typename T_Acc>
+    struct Get
+    {
+        typedef detail::FreeImpl<T_Functor> type;
+    };
+
+    template<typename T_Acc>
+    typename Get<T_Acc>::type
+    DINLINE get(const T_Acc& acc, const DataSpace<simDim>& localCellIdx) const
+    {
+        typedef typename Get<T_Acc>::type Functor;
+
+        return Functor();
+    }
 };
 
 } //namespace manipulators

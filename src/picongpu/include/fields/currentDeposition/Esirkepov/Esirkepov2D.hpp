@@ -164,7 +164,7 @@ struct Esirkepov<T_ParticleShape, DIM2>
                 accumulated_J += -this->charge * (float_X(1.0) / float_X(CELL_VOLUME * DELTA_T)) * W * cellEdgeLength;
                 /* the branch divergence here still over-compensates for the fewer collisions in the (expensive) atomic adds */
                 if (accumulated_J != float_X(0.0))
-                    atomicAdd(&((*cursorJ(i, j)).x()), accumulated_J);
+                    atomicAdd(&((*cursorJ(i, j)).x()), accumulated_J, ::alpaka::hierarchy::Threads());
             }
         }
 
@@ -197,7 +197,7 @@ struct Esirkepov<T_ParticleShape, DIM2>
 
                 const float_X j_z = this->charge * (float_X(1.0) / float_X(CELL_VOLUME)) * W * v_z;
                 if (j_z != float_X(0.0))
-                    atomicAdd(&((*cursorJ(i, j)).z()), j_z);
+                    atomicAdd(&((*cursorJ(i, j)).z()), j_z, ::alpaka::hierarchy::Threads());
             }
         }
 

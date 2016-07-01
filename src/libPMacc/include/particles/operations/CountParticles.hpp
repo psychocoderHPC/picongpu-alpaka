@@ -105,12 +105,12 @@ DINLINE void operator()(const T_Acc& acc,
         frame = pb.getPreviousFrame(frame);
         particlesInSuperCell = math::CT::volume<SuperCellSize>::type::value;
     }
-    atomicAdd(&counter, localCounter);
+    atomicAdd(&counter, localCounter,::alpaka::hierarchy::Threads());
     __syncthreads();
     if (stridedLinearThreadIdx == 0)
     {
         uint64_cu cnt = static_cast<uint64_cu>(counter);
-        atomicAdd(gCounter, cnt);
+        atomicAdd(gCounter, cnt,::alpaka::hierarchy::Blocks());
     }
 }
 };
@@ -140,8 +140,8 @@ struct CountParticles
         if(useElements)
         {
             using ElemSize = typename  CellDesc::SuperCellSize;
-            __cudaKernel_ELEM(kernelCountParticles<ElemSize>)
-                (mapper.getGridDim(), 1, block)
+            __cudaKernel_OPTI(kernelCountParticles<ElemSize>)
+                (mapper.getGridDim(), block)
                 (buffer.getDeviceParticlesBox(),
                  counter.getDeviceBuffer().getBasePointer(),
                  filter,

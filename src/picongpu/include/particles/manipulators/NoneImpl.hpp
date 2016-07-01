@@ -30,6 +30,23 @@ namespace particles
 namespace manipulators
 {
 
+namespace detail
+{
+struct NoneImpl
+{
+    HINLINE NoneImpl() = default;
+
+    template<typename T_Particle1, typename T_Particle2, typename T_Acc>
+    DINLINE void operator()(const T_Acc&,
+                            T_Particle1&, T_Particle2&,
+                            const bool, const bool)
+    {
+    }
+
+};
+
+} //namespace detail
+
 struct NoneImpl
 {
     template<typename T_SpeciesType>
@@ -38,17 +55,24 @@ struct NoneImpl
         typedef NoneImpl type;
     };
 
-    HINLINE NoneImpl(uint32_t)
+    HINLINE NoneImpl(const uint32_t)
     {
     }
 
-    template<typename T_Particle1, typename T_Particle2, typename T_Acc>
-    DINLINE void operator()(const T_Acc&, const DataSpace<simDim>&,
-                            T_Particle1&, T_Particle2&,
-                            const bool, const bool)
+    template<typename T_Acc>
+    struct Get
     {
-    }
+        typedef detail::NoneImpl type;
+    };
 
+    template<typename T_Acc>
+    typename Get<T_Acc>::type
+    DINLINE get(const T_Acc&, const DataSpace<simDim>& ) const
+    {
+        typedef typename Get<T_Acc>::type Functor;
+
+        return Functor();
+    }
 };
 
 } //namespace manipulators

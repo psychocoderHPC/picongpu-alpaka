@@ -78,8 +78,8 @@ public:
                 constexpr bool useElements = cupla::traits::IsThreadSeqAcc< cupla::AccThreadSeq >::value;
                 if(useElements)
                 {
-                    __cudaKernel_ELEM(kernelAbsorbBorder<SuperCellSize>)
-                        (mapper.getGridDim(), 1, mapper.getSuperCellSize())
+                    __cudaKernel_OPTI(kernelAbsorbBorder<SuperCellSize>)
+                        (mapper.getGridDim(), mapper.getSuperCellSize())
                         (deviceBox, thickness, absorber_strength,
                          mapper);
                 }
