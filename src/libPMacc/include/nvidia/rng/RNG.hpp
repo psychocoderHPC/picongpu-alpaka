@@ -41,6 +41,8 @@ class RNG : public RNGMethod
 {
 public:
 
+    typedef RNGMethod MethodType;
+    typedef Distribution DistributionType;
     typedef RNG<RNGMethod, Distribution> This;
 
     HDINLINE RNG()

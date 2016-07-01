@@ -61,7 +61,7 @@ template< int T_elemSize = 1 >
 struct kernelCloneParticles
 {
 template<class T_MyParBox, class T_OtherFrameBox, class T_ManipulateFunctor, class Mapping, typename T_Acc>
-DINLINE void operator()(const T_Acc& acc, T_MyParBox myBox, T_OtherFrameBox otherBox, T_ManipulateFunctor manipulateFunctor, Mapping mapper) const
+DINLINE void operator()(const T_Acc& acc, T_MyParBox myBox, T_OtherFrameBox otherBox, const T_ManipulateFunctor& manipulateFunctor, Mapping mapper) const
 {
     namespace mapElem = mappings::elements;
 
@@ -89,6 +89,21 @@ DINLINE void operator()(const T_Acc& acc, T_MyParBox myBox, T_OtherFrameBox othe
             myFrame = myBox.getEmptyFrame();
         }
     }
+    typedef typename T_ManipulateFunctor::template Get<T_Acc>::type ManipulatorFunctor;
+    typedef typename PMacc::math::CT::Int<1>::vector_type ElemSize;
+    PMacc::Array<ManipulatorFunctor, ElemSize> manipulateFunctorArray;
+    mapElem::vectorize<DIM1>(
+        [&]( const int idx )
+        {
+            const int linearThreadIdx = stridedLinearThreadIdx + idx;
+            const DataSpace<simDim> localCellIdx = block
+                    + DataSpaceOperations<simDim>::map<SuperCellSize>(linearThreadIdx)
+                    - mapper.getGuardingSuperCells() * SuperCellSize::toRT();
+            manipulateFunctorArray(DataSpace<DIM1>(idx)) = manipulateFunctor.get(acc, localCellIdx);
+        },
+        T_elemSize
+    );
+
     __syncthreads();
     while (frame.isValid()) //move over all Frames
     {
@@ -100,10 +115,7 @@ DINLINE void operator()(const T_Acc& acc, T_MyParBox myBox, T_OtherFrameBox othe
                 PMACC_AUTO(parSrc, frame[linearThreadIdx]);
                 assign(parDest, parSrc);
 
-                const DataSpace<simDim> localCellIdx = block
-                    + DataSpaceOperations<simDim>::map<SuperCellSize>(linearThreadIdx)
-                    - mapper.getGuardingSuperCells() * SuperCellSize::toRT();
-                manipulateFunctor(acc, localCellIdx,
+                manipulateFunctorArray(DataSpace<DIM1>(idx))(acc,
                                   parDest, parSrc,
                                   true, parSrc[multiMask_] == 1);
             },
@@ -133,7 +145,7 @@ struct kernelManipulateAllParticles
 template<typename T_ParticleFunctor,typename T_ParBox,  class Mapping, typename T_Acc>
 DINLINE void operator()(const T_Acc& acc,
                          T_ParBox pb,
-                         T_ParticleFunctor particleFunctor,
+                         const T_ParticleFunctor& particleFunctor,
                          Mapping mapper) const
 {
     namespace mapElem = mappings::elements;
@@ -157,18 +169,29 @@ DINLINE void operator()(const T_Acc& acc,
     const DataSpace<simDim> dataBlockCell(superCellIdx * SuperCellSize::toRT());
     const DataSpace<simDim> blockCell = dataBlockCell - mapper.getGuardingSuperCells() * SuperCellSize::toRT();
 
+    typedef typename T_ParticleFunctor::template Get<T_Acc>::type ParticleFunctor;
+    PMacc::Array<ParticleFunctor, T_ElemSize> particleFunctorArray;
+    mapElem::vectorize<simDim>(
+        [&]( const DataSpace<simDim>& idx )
+        {
+            const DataSpace<simDim> threadIndex( stridedThreadIndex + idx );
+            const DataSpace<simDim> cellIndex = blockCell + threadIndex;
+            particleFunctorArray(idx) = particleFunctor.get(acc, cellIndex);
+        },
+        T_ElemSize::toRT()
+    );
+
     while (frame.isValid())
     {
         mapElem::vectorize<simDim>(
             [&]( const DataSpace<simDim>& idx )
             {
                 const DataSpace<simDim> threadIndex( stridedThreadIndex + idx );
-                const DataSpace<simDim> cellIndex = blockCell + threadIndex;
                 const int linearThreadIdx = DataSpaceOperations<simDim>::template map<SuperCellSize > (threadIndex);
 
                 PMACC_AUTO(particle, frame[linearThreadIdx]);
                 bool isParticle = (linearThreadIdx < particlesInSuperCell);
-                particleFunctor(acc, cellIndex, particle, particle, isParticle, isParticle);
+                particleFunctorArray(idx)(acc, particle, particle, isParticle, isParticle);
             },
             T_ElemSize::toRT()
         );

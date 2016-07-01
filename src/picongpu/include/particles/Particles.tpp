@@ -177,12 +177,12 @@ void Particles<T_ParticleDescription>::update(uint32_t )
     dim3 block( MappingDesc::SuperCellSize::toRT().toDim3() );
 
     constexpr bool useElements = cupla::traits::IsThreadSeqAcc< cupla::AccThreadSeq >::value;
-    
+
     if(useElements)
     {
         using ElemSize = typename  MappingDesc::SuperCellSize;
-        __picKernelArea_ELEM( kernelMoveAndMarkParticles<BlockArea, ElemSize>)( this->cellDescription, CORE + BORDER )
-            (1, block)
+        __picKernelArea_OPTI( kernelMoveAndMarkParticles<BlockArea, ElemSize>)( this->cellDescription, CORE + BORDER )
+            (block)
             ( this->getDeviceParticlesBox( ),
               this->fieldE->getDeviceDataBox( ),
               this->fieldB->getDeviceDataBox( ),
@@ -203,6 +203,29 @@ void Particles<T_ParticleDescription>::update(uint32_t )
     ParticlesBaseType::template shiftParticles < CORE + BORDER > ( );
 }
 
+template< bool T_sequentialAcc>
+struct FillGrid
+{
+  template<typename T_Kernel, typename T_Mapper, typename T_BlockSize, typename... T_Args>
+  static void call(T_Mapper& mapper, const T_BlockSize& block, const T_Args& ... args)
+  {
+      __cudaKernel( T_Kernel )(mapper.getGridDim(), block)
+            ( args..., mapper );
+  }
+
+};
+
+template< >
+struct FillGrid<true>
+{
+  template<typename T_Kernel, typename T_Mapper,  typename T_BlockSize, typename... T_Args>
+  static void call(T_Mapper& mapper, const T_BlockSize& block, const T_Args& ... args)
+  {
+      __cudaKernel_OPTI( T_Kernel)(mapper.getGridDim(), block)
+            ( args..., mapper );
+  }
+};
+
 template< typename T_ParticleDescription>
 template<typename T_GasFunctor, typename T_PositionFunctor>
 void Particles<T_ParticleDescription>::initGas( T_GasFunctor& gasFunctor,
@@ -220,22 +243,15 @@ void Particles<T_ParticleDescription>::initGas( T_GasFunctor& gasFunctor,
     dim3 block( MappingDesc::SuperCellSize::toRT( ).toDim3( ) );
 
     constexpr bool useElements = cupla::traits::IsThreadSeqAcc< cupla::AccThreadSeq >::value;
-    if(useElements)
-    {
-        using ElemSize = typename  MappingDesc::SuperCellSize;
-        __picKernelArea_ELEM( kernelFillGridWithParticles<Particles<T_ParticleDescription>, ElemSize >)(
-                          this->cellDescription, CORE + BORDER)
-            (1,block)
-            ( gasFunctor, positionFunctor, totalGpuCellOffset, this->particlesBuffer->getDeviceParticleBox( ) );
-    }
-    else
-    {
-        // because of the random number generator (fix cusage of cupla::AccThreadSeq) only a call with __picKernelArea_ELEM is allowed
-        __picKernelArea_ELEM( kernelFillGridWithParticles<Particles<T_ParticleDescription> >)(
-                          this->cellDescription, CORE + BORDER)
-            (block, 1)
-            ( gasFunctor, positionFunctor, totalGpuCellOffset, this->particlesBuffer->getDeviceParticleBox( ) );
-    }
+
+    using ElemSize = typename  MappingDesc::SuperCellSize;
+    using Elems = typename bmpl::if_<bmpl::bool_<useElements>, ElemSize,  typename PMacc::math::CT::make_Int<simDim,1>::type::vector_type >::type;
+    AreaMapping<CORE + BORDER, MappingDesc> mapper(this->cellDescription);
+
+    /// \todo because of the reason that the random number generator is fixed to an accelerator we need to do this hack
+    using MyKernel = kernelFillGridWithParticles<Particles<T_ParticleDescription>, Elems >;
+    FillGrid<useElements>::call<MyKernel>
+      (mapper, block, gasFunctor, positionFunctor, totalGpuCellOffset, this->particlesBuffer->getDeviceParticleBox( ));
 
     this->fillAllGaps( );
 }
@@ -253,8 +269,8 @@ void Particles<T_ParticleDescription>::deviceCloneFrom( Particles< T_SrcParticle
     constexpr bool useElements = cupla::traits::IsThreadSeqAcc< cupla::AccThreadSeq >::value;
     if(useElements)
     {
-        __picKernelArea_ELEM( kernelCloneParticles<cellsInSupercell>)( this->cellDescription, CORE + BORDER )
-            (1,block) ( this->getDeviceParticlesBox( ), src.getDeviceParticlesBox( ), functor );
+        __picKernelArea_OPTI( kernelCloneParticles<cellsInSupercell>)( this->cellDescription, CORE + BORDER )
+            (block) ( this->getDeviceParticlesBox( ), src.getDeviceParticlesBox( ), functor );
     }
     else
     {
@@ -275,8 +291,8 @@ void Particles<T_ParticleDescription>::manipulateAllParticles( uint32_t currentS
     if(useElements)
     {
         using ElemSize = typename  MappingDesc::SuperCellSize;
-        __picKernelArea_ELEM( kernelManipulateAllParticles<ElemSize>)( this->cellDescription, CORE + BORDER )
-            (1,block)
+        __picKernelArea_OPTI( kernelManipulateAllParticles<ElemSize>)( this->cellDescription, CORE + BORDER )
+            (block)
             ( this->particlesBuffer->getDeviceParticleBox( ),
               functor );
     }

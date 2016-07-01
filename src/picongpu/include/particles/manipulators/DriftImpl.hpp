@@ -30,26 +30,21 @@ namespace particles
 {
 namespace manipulators
 {
-
-template<typename T_ParamClass, typename T_ValueFunctor, typename T_SpeciesType>
-struct DriftImpl : private T_ValueFunctor
+namespace detail
+{
+template<typename T_ParamClass, typename T_ValueFunctor>
+struct DriftImpl : protected T_ValueFunctor
 {
     typedef T_ParamClass ParamClass;
-    typedef T_SpeciesType SpeciesType;
-    typedef typename MakeIdentifier<SpeciesType>::type SpeciesName;
-
     typedef T_ValueFunctor ValueFunctor;
 
-    HINLINE DriftImpl(uint32_t)
-    {
-    }
+    DINLINE DriftImpl() = default;
 
     template<typename T_Particle1, typename T_Particle2, typename T_Acc>
-    DINLINE void operator()(const T_Acc& acc, const DataSpace<simDim>& localCellIdx,
+    DINLINE void operator()(const T_Acc& acc,
                             T_Particle1& particle, T_Particle2&,
                             const bool isParticle, const bool)
     {
-        typedef typename SpeciesType::FrameType FrameType;
 
         if (isParticle)
         {
@@ -78,6 +73,38 @@ struct DriftImpl : private T_ValueFunctor
         }
     }
 
+};
+
+} //namespace detail
+
+template<typename T_ParamClass, typename T_ValueFunctor>
+struct DriftImpl
+{
+    template<typename T_SpeciesType>
+    struct apply
+    {
+        typedef DriftImpl< T_ParamClass, T_ValueFunctor > type;
+    };
+
+    HINLINE DriftImpl(uint32_t currentStep)
+    {
+
+    }
+
+    template<typename T_Acc>
+    struct Get
+    {
+        typedef detail::DriftImpl< T_ParamClass, T_ValueFunctor > type;
+    };
+
+    template<typename T_Acc>
+    typename Get<T_Acc>::type
+    DINLINE get(const T_Acc& acc, const DataSpace<simDim>& localCellIdx) const
+    {
+        typedef typename Get<T_Acc>::type Functor;
+
+        return Functor();
+    }
 };
 
 } //namespace manipulators

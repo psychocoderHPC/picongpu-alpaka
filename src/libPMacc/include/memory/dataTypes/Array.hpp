@@ -1,6 +1,6 @@
 /**
  * Copyright 2016 Rene Widera
- * 
+ *
  * This file is part of libPMacc.
  *
  * libPMacc is free software: you can redistribute it and/or modify
@@ -70,6 +70,10 @@ struct Array<
     PMacc::math::CT::Vector<T_X,T_Y,T_Z>::y::value
 >
 {
+    HDINLINE Array ( const Array & ) = default;
+
+    HDINLINE Array () = default;
+
     HDINLINE const T_Type&
     operator()( const DataSpace<DIM2>& idx ) const
     {
@@ -101,6 +105,10 @@ struct Array<
         PMacc::math::CT::Vector<T_X,T_Y,T_Z>::z::value
 >
 {
+
+    HDINLINE Array ( const Array & ) = default;
+
+    HDINLINE Array () = default;
 
     HDINLINE const T_Type&
     operator()( const DataSpace<DIM3>& idx ) const

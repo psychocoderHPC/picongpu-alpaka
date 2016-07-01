@@ -30,6 +30,9 @@ namespace startPosition
 {
 
 template<typename T_Base>
+struct IFunctorDevice;
+
+template<typename T_Base>
 struct IFunctor;
 
 } //namespace startPosition

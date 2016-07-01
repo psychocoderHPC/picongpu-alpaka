@@ -37,10 +37,11 @@ namespace manipulators
 {
 
 namespace nvrng = nvidia::rng;
-namespace rngMethods = nvidia::rng::methods;
-namespace rngDistributions = nvidia::rng::distributions;
 
-template<typename T_ParamClass, typename T_ValueFunctor, typename T_SpeciesType>
+namespace detail
+{
+
+template<typename T_ParamClass, typename T_ValueFunctor, typename T_SpeciesType, typename T_Rng>
 struct TemperatureImpl : private T_ValueFunctor
 {
     typedef T_ParamClass ParamClass;
@@ -49,36 +50,21 @@ struct TemperatureImpl : private T_ValueFunctor
 
     typedef T_ValueFunctor ValueFunctor;
 
-    HINLINE TemperatureImpl(uint32_t currentStep) : isInitialized(false)
+    DINLINE TemperatureImpl() = default;
+
+    template<typename T_Acc>
+    DINLINE TemperatureImpl(const T_Acc& acc, const uint32_t seed, const uint32_t cellIdx)
     {
-        typedef typename SpeciesType::FrameType FrameType;
-
-        GlobalSeed globalSeed;
-        mpi::SeedPerRank<simDim> seedPerRank;
-        seed = globalSeed() ^
-               PMacc::traits::GetUniqueTypeId<FrameType, uint32_t>::uid() ^
-               TEMPERATURE_SEED;
-        seed = seedPerRank(seed) ^ currentStep;
-
-        const SubGrid<simDim>& subGrid = Environment<simDim>::get().SubGrid();
-        localCells = subGrid.getLocalDomain().size;
+        rng = nvrng::create(typename T_Rng::MethodType(acc,seed, cellIdx), typename T_Rng::DistributionType(acc));
     }
 
     template<typename T_Particle1, typename T_Particle2, typename T_Acc>
-    DINLINE void operator()(const T_Acc& acc, const DataSpace<simDim>& localCellIdx,
+    DINLINE void operator()(const T_Acc& acc,
                             T_Particle1& particle, T_Particle2&,
                             const bool isParticle, const bool)
     {
         typedef typename T_Particle1::FrameType FrameType;
 
-        if (!isInitialized)
-        {
-            const uint32_t cellIdx = DataSpaceOperations<simDim>::map(
-                                                                      localCells,
-                                                                      localCellIdx );
-            rng = nvrng::create(rngMethods::Xor<T_Acc>(acc, seed, cellIdx), rngDistributions::Normal_float<T_Acc>(acc));
-            isInitialized = true;
-        }
         if (isParticle)
         {
             const float3_X tmpRand = float3_X(rng(),
@@ -121,11 +107,53 @@ struct TemperatureImpl : private T_ValueFunctor
     }
 
 private:
-    typedef PMacc::nvidia::rng::RNG<rngMethods::Xor<cupla::AccThreadSeq>, rngDistributions::Normal_float<cupla::AccThreadSeq>> RngType;
-    RngType rng;
-    bool isInitialized;
-    uint32_t seed;
-    DataSpace<simDim> localCells;
+    T_Rng rng;
+};
+
+} //namespace detail
+
+template<typename T_ParamClass, typename T_ValueFunctor, typename T_SpeciesType>
+struct TemperatureImpl
+{
+
+    typedef T_SpeciesType SpeciesType;
+    HINLINE TemperatureImpl(uint32_t currentStep)
+    {
+        typedef typename SpeciesType::FrameType FrameType;
+
+        GlobalSeed globalSeed;
+        mpi::SeedPerRank<simDim> seedPerRank;
+        seed = globalSeed() ^
+               PMacc::traits::GetUniqueTypeId<FrameType, uint32_t>::uid() ^
+               TEMPERATURE_SEED;
+        seed = seedPerRank(seed) ^ currentStep;
+
+        const SubGrid<simDim>& subGrid = Environment<simDim>::get().SubGrid();
+        localCells = subGrid.getLocalDomain().size;
+    }
+
+    template<typename T_Acc>
+    struct Get
+    {
+        typedef PMacc::nvidia::rng::RNG<nvrng::methods::Xor<T_Acc>, nvrng::distributions::Normal_float<T_Acc> > RngType;
+        typedef detail::TemperatureImpl<T_ParamClass, T_ValueFunctor, T_SpeciesType, RngType> type;
+    };
+
+    template<typename T_Acc>
+    typename Get<T_Acc>::type
+    DINLINE get(const T_Acc& acc, const DataSpace<simDim>& localCellIdx) const
+    {
+        typedef typename Get<T_Acc>::type Functor;
+
+        const uint32_t cellIdx = DataSpaceOperations<simDim>::map(
+            localCells,
+            localCellIdx
+        );
+        return Functor(acc,seed,cellIdx);
+    }
+
+    PMACC_ALIGN(seed, uint32_t);
+    PMACC_ALIGN(localCells, DataSpace<simDim>);
 };
 
 } //namespace manipulators

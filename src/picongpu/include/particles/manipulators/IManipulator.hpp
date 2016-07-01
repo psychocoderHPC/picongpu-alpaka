@@ -33,22 +33,49 @@ namespace manipulators
 {
 
 template<typename T_Base>
-struct IManipulator : private T_Base
+struct IManipulatorDevice : protected T_Base
 {
     typedef T_Base Base;
 
-    HDINLINE IManipulator() = default;
+    DINLINE IManipulatorDevice() = default;
 
-    HINLINE IManipulator(uint32_t currentStep) : Base(currentStep)
+    template<typename... T_Args>
+    DINLINE IManipulatorDevice(const T_Args& ... args) : Base( args...)
     {
     }
 
     template<typename T_Particle1, typename T_Particle2, typename T_Acc>
-    DINLINE void operator()(const T_Acc& acc, const DataSpace<simDim>& localCellIdx,
+    DINLINE void operator()(const T_Acc& acc,
                             T_Particle1& particleSpecies1, T_Particle2& particleSpecies2,
                             const bool isParticle1, const bool isParticle2)
     {
-        return Base::operator()(acc, localCellIdx, particleSpecies1, particleSpecies2, isParticle1, isParticle2);
+        return Base::operator()(acc, particleSpecies1, particleSpecies2, isParticle1, isParticle2);
+    }
+};
+
+
+template<typename T_Base>
+struct IManipulator : protected T_Base
+{
+    typedef T_Base Base;
+
+    template<typename T_Acc>
+    struct Get
+    {
+        typedef IManipulatorDevice<
+            typename Base::template Get<T_Acc>::type
+        > type;
+    };
+
+    template<typename T_Acc>
+    typename Get<T_Acc>::type
+    DINLINE get(const T_Acc& acc, const DataSpace<simDim>& localCellIdx) const
+    {
+        return Base::get(acc, localCellIdx);
+    }
+
+    HINLINE IManipulator(uint32_t currentStep) : Base(currentStep)
+    {
     }
 };
 
