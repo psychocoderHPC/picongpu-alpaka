@@ -204,10 +204,9 @@ void FieldE::laserManipulation( uint32_t currentStep )
     constexpr bool useElements = cupla::traits::IsThreadSeqAcc< cupla::AccThreadSeq >::value;
     if(useElements)
     {
-        __cudaKernel_ELEM( kernelLaserE<SuperCellSize> )
+        __cudaKernel_OPTI( kernelLaserE<SuperCellSize> )
             (
                 gridBlocks,
-                1,
                 blockSize
             )
             ( this->getDeviceDataBox( ), laser->getLaserManipulator( currentStep ) );

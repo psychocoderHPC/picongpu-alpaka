@@ -32,29 +32,15 @@ namespace particles
 {
 namespace startPosition
 {
+namespace detail
+{
 
 template<typename T_ParamClass>
 struct QuietImpl
 {
 
-    typedef T_ParamClass ParamClass;
-
-    template<typename T_SpeciesType>
-    struct apply
+    DINLINE QuietImpl() : numParInCell(T_ParamClass::numParticlesPerDimension::toRT())
     {
-        typedef QuietImpl<ParamClass> type;
-    };
-
-    HDINLINE QuietImpl() = default;
-
-    HINLINE QuietImpl(uint32_t): numParInCell(ParamClass::numParticlesPerDimension::toRT())
-    {
-    }
-
-    template<typename T_Acc>
-    DINLINE void init(const T_Acc&, const DataSpace<simDim>& totalCellOffset)
-    {
-
     }
 
     /** Distributes the initial particles lattice-like within the cell.
@@ -128,6 +114,38 @@ protected:
 
     DataSpace<simDim> numParInCell;
 };
+} // namespace detail
+
+template<typename T_ParamClass>
+struct QuietImpl
+{
+    typedef T_ParamClass ParamClass;
+
+    template<typename T_Acc>
+    struct Get
+    {
+        typedef detail::QuietImpl<ParamClass> type;
+    };
+
+    template<typename T_SpeciesType>
+    struct apply
+    {
+        typedef QuietImpl<ParamClass> type;
+    };
+
+    HINLINE QuietImpl(uint32_t)
+    {
+    }
+
+    template<typename T_Acc>
+    typename Get<T_Acc>::type
+    DINLINE get(const T_Acc& acc, const DataSpace<simDim>& totalCellOffset) const
+    {
+        typedef typename Get<T_Acc>::type Functor;
+        return Functor();
+    }
+};
+
 } //namespace particlesStartPosition
 } //namespace particles
 } //namespace picongpu

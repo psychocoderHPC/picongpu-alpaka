@@ -43,8 +43,8 @@ namespace PMacc
         constexpr bool useElements = cupla::traits::IsThreadSeqAcc< cupla::AccThreadSeq >::value;
         if(useElements)
         {
-            __cudaKernel_ELEM(kernelDeleteParticles<TileSize>)
-                    (grid, 1, TileSize)
+            __cudaKernel_OPTI(kernelDeleteParticles<TileSize>)
+                    (grid, TileSize)
                     (particlesBuffer->getDeviceParticleBox(), mapper);
         }
         else
@@ -65,8 +65,8 @@ namespace PMacc
         constexpr bool useElements = cupla::traits::IsThreadSeqAcc< cupla::AccThreadSeq >::value;
         if(useElements)
         {
-            __cudaKernel_ELEM(kernelDeleteParticles<TileSize>)
-                    (grid, 1, TileSize)
+            __cudaKernel_OPTI(kernelDeleteParticles<TileSize>)
+                    (grid, TileSize)
                     (particlesBuffer->getDeviceParticleBox(), mapper);
         }
         else
@@ -96,8 +96,8 @@ namespace PMacc
             constexpr bool useElements = cupla::traits::IsThreadSeqAcc< cupla::AccThreadSeq >::value;
             if(useElements)
             {
-                __cudaKernel_ELEM(kernelBashParticles<TileSize>)
-                        (grid, 1, TileSize)
+                __cudaKernel_OPTI(kernelBashParticles<TileSize>)
+                        (grid, TileSize)
                         (particlesBuffer->getDeviceParticleBox(),
                         particlesBuffer->getSendExchangeStack(exchangeType).getDeviceExchangePushDataBox(), mapper);
             }
@@ -124,8 +124,8 @@ namespace PMacc
                 constexpr bool useElements = cupla::traits::IsThreadSeqAcc< cupla::AccThreadSeq >::value;
                 if(useElements)
                 {
-                    __cudaKernel_ELEM(kernelInsertParticles<TileSize>)
-                            (grid, 1, TileSize)
+                    __cudaKernel_OPTI(kernelInsertParticles<TileSize>)
+                            (grid, TileSize)
                             (particlesBuffer->getDeviceParticleBox(),
                             particlesBuffer->getReceiveExchangeStack(exchangeType).getDeviceExchangePopDataBox(),
                             mapper);

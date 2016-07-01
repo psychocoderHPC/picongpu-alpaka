@@ -102,14 +102,14 @@ protected:
             constexpr bool useElements = cupla::traits::IsThreadSeqAcc< cupla::AccThreadSeq >::value;
             if(useElements)
             {
-                __cudaKernel_ELEM(kernelShiftParticles<TileSize>)
-                    (mapper.getGridDim(), 1, TileSize)
+                __cudaKernel_OPTI(kernelShiftParticles<TileSize>)
+                    (mapper.getGridDim(), TileSize)
                     (pBox, mapper);
-                __cudaKernel_ELEM(kernelFillGaps<TileSize>)
-                    (mapper.getGridDim(), 1, TileSize)
+                __cudaKernel_OPTI(kernelFillGaps<TileSize>)
+                    (mapper.getGridDim(), TileSize)
                     (pBox, mapper);
-                __cudaKernel_ELEM(kernelFillGapsLastFrame<TileSize>)
-                    (mapper.getGridDim(), 1, TileSize)
+                __cudaKernel_OPTI(kernelFillGapsLastFrame<TileSize>)
+                    (mapper.getGridDim(), TileSize)
                     (pBox, mapper);
             }
             else
@@ -142,12 +142,12 @@ protected:
         constexpr bool useElements = cupla::traits::IsThreadSeqAcc< cupla::AccThreadSeq >::value;
         if(useElements)
         {
-            __cudaKernel_ELEM(kernelFillGaps<TileSize>)
-                (mapper.getGridDim(), 1, TileSize )
+            __cudaKernel_OPTI(kernelFillGaps<TileSize>)
+                (mapper.getGridDim(), TileSize )
                 (particlesBuffer->getDeviceParticleBox(), mapper);
 
-            __cudaKernel_ELEM(kernelFillGapsLastFrame<TileSize>)
-                (mapper.getGridDim(), 1, TileSize)
+            __cudaKernel_OPTI(kernelFillGapsLastFrame<TileSize>)
+                (mapper.getGridDim(), TileSize)
                 (particlesBuffer->getDeviceParticleBox(), mapper);
         }
         else

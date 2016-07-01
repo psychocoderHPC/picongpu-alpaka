@@ -29,44 +29,83 @@ namespace particles
 {
 namespace manipulators
 {
-
-template<typename T_ParamClass, typename T_Functor, typename T_SpeciesType>
-struct IfRelativeGlobalPositionImpl : private T_Functor
+namespace detail
+{
+template<typename T_ParamClass, typename T_Functor>
+struct IfRelativeGlobalPositionImpl : protected T_Functor
 {
     typedef T_ParamClass ParamClass;
-     typedef T_SpeciesType SpeciesType;
-    typedef typename MakeIdentifier<SpeciesType>::type SpeciesName;
     typedef T_Functor Functor;
 
-    HINLINE IfRelativeGlobalPositionImpl(uint32_t currentStep) : Functor(currentStep)
+    DINLINE IfRelativeGlobalPositionImpl() = default;
+
+    DINLINE IfRelativeGlobalPositionImpl(
+        const Functor& functor,
+        const DataSpace<simDim>& globalCellPosition,
+        const DataSpace<simDim>& globalDomainSize
+    ) : Functor(functor), m_globalCellPosition(globalCellPosition), m_globalDomainSize(globalDomainSize)
     {
-        const SubGrid<simDim>& subGrid = Environment<simDim>::get().SubGrid();
-        globalDomainSize = subGrid.getGlobalDomain().size;
-        localDomainOffset = subGrid.getLocalDomain().offset;
     }
 
     template<typename T_Particle1, typename T_Particle2, typename T_Acc>
-    DINLINE void operator()(const T_Acc& acc, const DataSpace<simDim>& localCellIdx,
+    DINLINE void operator()(const T_Acc& acc,
                             T_Particle1& particle1, T_Particle2& particle2,
                             const bool isParticle1, const bool isParticle2)
     {
-        typedef typename SpeciesType::FrameType FrameType;
-
-
-        DataSpace<simDim> myCellPosition = localCellIdx + localDomainOffset;
-
-        float_X relativePosition = float_X(myCellPosition[ParamClass::dimension]) /
-            float_X(globalDomainSize[ParamClass::dimension]);
+        float_X relativePosition = float_X(m_globalCellPosition[ParamClass::dimension]) /
+            float_X(m_globalDomainSize[ParamClass::dimension]);
 
         const bool inRange=(ParamClass::lowerBound <= relativePosition &&
             relativePosition < ParamClass::upperBound);
         const bool particleInRange1 = isParticle1 && inRange;
         const bool particleInRange2 = isParticle2 && inRange;
 
-        Functor::operator()(acc, localCellIdx,
+        Functor::operator()(acc,
                             particle1, particle2,
                             particleInRange1, particleInRange2);
 
+    }
+
+private:
+
+    DataSpace<simDim> m_globalCellPosition;
+    DataSpace<simDim> m_globalDomainSize;
+};
+} //namespace detail
+
+template<typename T_ParamClass, typename T_Functor>
+struct IfRelativeGlobalPositionImpl : protected T_Functor
+{
+    template<typename T_SpeciesType>
+    struct apply
+    {
+        typedef IfRelativeGlobalPositionImpl<T_ParamClass, typename bmpl::apply1<T_Functor,T_SpeciesType>::type > type;
+    };
+
+    HINLINE IfRelativeGlobalPositionImpl(uint32_t currentStep) : T_Functor(currentStep)
+    {
+        const SubGrid<simDim>& subGrid = Environment<simDim>::get().SubGrid();
+        globalDomainSize = subGrid.getGlobalDomain().size;
+        localDomainOffset = subGrid.getLocalDomain().offset;
+    }
+
+    template<typename T_Acc>
+    struct Get
+    {
+        typedef detail::IfRelativeGlobalPositionImpl<T_ParamClass, typename T_Functor::template Get<T_Acc>::type> type;
+    };
+
+    template<typename T_Acc>
+    typename Get<T_Acc>::type
+    DINLINE get(const T_Acc& acc, const DataSpace<simDim>& localCellIdx) const
+    {
+        typedef typename Get<T_Acc>::type Functor;
+
+        return Functor(
+            T_Functor::get(acc,localCellIdx),
+            localDomainOffset+localCellIdx,
+            globalDomainSize
+        );
     }
 
 private:
