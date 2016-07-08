@@ -332,11 +332,8 @@ DINLINE void operator()( const T_Acc& acc, ParBox pb, Mapping mapper ) const
                 isParticleArray[idx] = lastFrame[threadIndex][multiMask_];
                 if ( isParticleArray[idx] == true ) //\todo: bits zählen
                 {
-#if (PMACC_CUDA_ENABLED == 1)
-                    nvidia::atomicAllInc( acc, &counterParticles );
-#else
+                    nvidia::atomicAllInc( acc, &counterParticles, ::alpaka::hierarchy::Threads() );
                     ++counterParticles;
-#endif
                 }
             },
             T_elemSize
@@ -349,11 +346,7 @@ DINLINE void operator()( const T_Acc& acc, ParBox pb, Mapping mapper ) const
                 const int threadIndex = stridedLinearThreadIdx + idx;
                 if ( threadIndex < counterParticles && isParticleArray[idx] == false )
                 {
-#if (PMACC_CUDA_ENABLED == 1)
-                    const int localGapIdx = nvidia::atomicAllInc( acc, &counterGaps );
-#else
-                    const int localGapIdx = counterGaps++;
-#endif
+                    const int localGapIdx = nvidia::atomicAllInc( acc, &counterGaps, ::alpaka::hierarchy::Threads() );
                     gapIndices_sh[localGapIdx] = threadIndex;
                 }
             },
@@ -450,11 +443,7 @@ DINLINE void operator()( const T_Acc& acc, ParBox pb, Mapping mapper ) const
                 // find gaps
                 if ( firstFrame[threadIndex][multiMask_] == 0 )
                 {
-#if (PMACC_CUDA_ENABLED == 1)
-                    localGapIdxArray[idx] = nvidia::atomicAllInc( acc, &counterGaps );
-#else
-                    localGapIdxArray[idx] = counterGaps++;
-#endif
+                    localGapIdxArray[idx] = nvidia::atomicAllInc( acc, &counterGaps, ::alpaka::hierarchy::Threads() );
                 }
             },
             T_elemSize
@@ -478,11 +467,7 @@ DINLINE void operator()( const T_Acc& acc, ParBox pb, Mapping mapper ) const
                 // search particles for gaps
                 if ( lastFrame[threadIndex][multiMask_] == 1 )
                 {
-#if (PMACC_CUDA_ENABLED == 1)
-                    int localParticleIdx = nvidia::atomicAllInc( acc, &counterParticles );
-#else
-                    int localParticleIdx = counterParticles++;
-#endif
+                    int localParticleIdx = nvidia::atomicAllInc( acc, &counterParticles, ::alpaka::hierarchy::Threads() );
                     particleIndices_sh[localParticleIdx] = threadIndex;
                 }
             },
@@ -646,11 +631,7 @@ DINLINE void operator()( const T_Acc& acc, ParBox pb,
                 const int linearThreadIdx = stridedLinearThreadIdx + idx;
                 if ( frame[linearThreadIdx][multiMask_] == 1 )
                 {
-#if (PMACC_CUDA_ENABLED == 1)
-                    bashIdxArray[idx] = nvidia::atomicAllInc( acc, &numBashedParticles );
-#else
-                    bashIdxArray[idx] = numBashedParticles++;
-#endif
+                    bashIdxArray[idx] = nvidia::atomicAllInc( acc, &numBashedParticles, ::alpaka::hierarchy::Threads() );
                 }
             },
             T_elemSize

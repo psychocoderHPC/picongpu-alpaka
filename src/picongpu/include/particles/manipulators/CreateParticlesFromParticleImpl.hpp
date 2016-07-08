@@ -124,7 +124,7 @@ struct CreateParticlesFromParticleImpl : private T_Functor
             __syncthreads();
             if (isParticle && numParToCreate > 0)
             {
-                freeSlot = nvidia::atomicAllInc(acc, &particlesInDestSuperCell);
+                freeSlot = nvidia::atomicAllInc(acc, &particlesInDestSuperCell, ::alpaka::hierarchy::Threads());
             }
             --numParToCreate;
             if (freeSlot>-1 && freeSlot < cellsInSuperCell)

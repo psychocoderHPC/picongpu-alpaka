@@ -446,12 +446,8 @@ struct PushParticlePerFrame
          */
         if (direction >= 2)
         {
-#if (PMACC_CUDA_ENABLED == 1)
             /* if we did not use atomic we would get a WAW error */
-            nvidia::atomicAllExch(acc, &mustShift, 1);
-#else
-            mustShift = 1;
-#endif
+            nvidia::atomicAllExch(acc, &mustShift, 1,::alpaka::hierarchy::Threads());
         }
     }
 };

@@ -131,7 +131,7 @@ DINLINE void operator()(const T_Acc& acc,
             totalNumParsPerCellArray(idx) = numParsPerCellArray(idx);
 
             if (numParsPerCellArray(idx) > 0)
-                nvidia::atomicAllExch(acc, &finished, 0); //one or more cells have particles to create
+                nvidia::atomicAllExch(acc, &finished, 0, ::alpaka::hierarchy::Threads()); //one or more cells have particles to create
 
         },
         T_ElemSize::toRT(),
