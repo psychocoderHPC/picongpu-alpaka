@@ -334,7 +334,7 @@ operator()(const T_Acc& acc,
             if (globalCell == slice)
 #endif
             {
-                nvidia::atomicAllExch(acc,&isValid,1); /*WAW Error in cuda-memcheck racecheck*/
+                nvidia::atomicAllExch(acc, &isValid, 1, ::alpaka::hierarchy::Threads()); /*WAW Error in cuda-memcheck racecheck*/
                 isImageThread = true;
             }
 

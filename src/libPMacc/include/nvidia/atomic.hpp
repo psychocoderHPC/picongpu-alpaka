@@ -41,11 +41,11 @@ namespace nvidia
         template<typename T_Type, bool T_isKepler>
         struct AtomicAllInc
         {
-            template< typename T_Acc >
+            template< typename T_Acc, typename T_Hierarchy >
             DINLINE T_Type
-            operator()(const T_Acc& acc, T_Type* ptr)
+            operator()(const T_Acc& acc, T_Type* ptr, const T_Hierarchy& hierarchy)
             {
-                return atomicAdd(ptr, 1);
+                return atomicAdd(ptr, T_Type(1), hierarchy);
             }
         };
 
@@ -112,9 +112,9 @@ namespace nvidia
         template<>
         struct AtomicAllIncKepler<long long int, true>
         {
-            template< typename T_Acc >
+            template< typename T_Acc, typename T_Hierarchy >
             DINLINE long long int
-            operator()(const T_Acc& acc, long long int* ptr)
+            operator()(const T_Acc& acc, long long int* ptr, const T_Hierarchy& )
             {
                 return static_cast<long long int>(
                         AtomicAllIncKepler<unsigned long long int>()(
@@ -141,11 +141,11 @@ namespace nvidia
  * @param ptr pointer to memory (must be the same address for all threads in a block)
  *
  */
-template<typename T, typename T_Acc>
+template<typename T, typename T_Acc, typename T_Hierarchy = ::alpaka::hierarchy::Grids>
 DINLINE
-T atomicAllInc(const T_Acc& acc, T *ptr)
+T atomicAllInc(const T_Acc& acc, T *ptr, const T_Hierarchy& hierarchy = T_Hierarchy())
 {
-    return detail::AtomicAllInc<T, (PMACC_CUDA_ARCH >= 300) >()(acc, ptr);
+    return detail::AtomicAllInc<T, (PMACC_CUDA_ARCH >= 300) >()(acc, ptr, hierarchy);
 }
 
 /** optimized atomic value exchange
@@ -162,9 +162,9 @@ T atomicAllInc(const T_Acc& acc, T *ptr)
  * @param ptr pointer to memory (must be the same address for all threads in a block)
  * @param value new value (must be the same for all threads in a block)
  */
-template<typename T_Type, typename T_Acc>
+template<typename T_Type, typename T_Acc, typename T_Hierarchy = ::alpaka::hierarchy::Grids>
 DINLINE void
-atomicAllExch(const T_Acc& acc, T_Type* ptr, const T_Type value)
+atomicAllExch(const T_Acc& acc, T_Type* ptr, const T_Type value, const T_Hierarchy& hierarchy = T_Hierarchy())
 {
 #if (__CUDA_ARCH__ >= 200)
     const int mask = __ballot(1);
@@ -173,7 +173,7 @@ atomicAllExch(const T_Acc& acc, T_Type* ptr, const T_Type value)
     // leader does the update
     if (getLaneId() == leader)
 #endif
-        atomicExch(ptr, value);
+        atomicExch(ptr, value, hierarchy);
 }
 
 } //namespace nvidia
