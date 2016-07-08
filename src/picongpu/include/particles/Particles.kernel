@@ -90,7 +90,7 @@ DINLINE void operator()(const T_Acc& acc, T_MyParBox myBox, T_OtherFrameBox othe
         }
     }
     typedef typename T_ManipulateFunctor::template Get<T_Acc>::type ManipulatorFunctor;
-    typedef typename PMacc::math::CT::Int<1>::vector_type ElemSize;
+    typedef typename PMacc::math::CT::Int<T_elemSize>::vector_type ElemSize;
     PMacc::Array<ManipulatorFunctor, ElemSize> manipulateFunctorArray;
     mapElem::vectorize<DIM1>(
         [&]( const int idx )
