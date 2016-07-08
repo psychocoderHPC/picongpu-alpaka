@@ -185,23 +185,26 @@ private:
 
 
         int maxTries = num_gpus;
-
-        //cudaDeviceProp devProp;
-
-        //cudaError rc;
-        //CUDA_CHECK(cudaGetDeviceProperties(&devProp, deviceNumber));
+#if ( PMACC_CUDA_ENABLED == 1 )
+        cudaDeviceProp devProp;
+        cudaError rc;
+        CUDA_CHECK(cudaGetDeviceProperties(&devProp, deviceNumber));
 
         /* if the gpu compute mode is set to default we use the given `deviceNumber` */
-        /*if (devProp.computeMode == cudaComputeModeDefault)
+        if (devProp.computeMode == cudaComputeModeDefault)
             maxTries = 1;
-         */
+
+#endif
         for (int deviceOffset = 0; deviceOffset < maxTries; ++deviceOffset)
         {
             const int tryDeviceId = (deviceOffset + deviceNumber) % num_gpus;
-//            rc = cudaSetDevice(tryDeviceId);
+#if ( PMACC_CUDA_ENABLED == 1 )
+            rc = cudaSetDevice(tryDeviceId);
+#else
             cudaSetDevice(tryDeviceId);
             break;
-#if 0
+#endif
+#if ( PMACC_CUDA_ENABLED == 1 )
             if(rc == cudaSuccess)
             {
                cudaStream_t stream;
