@@ -186,13 +186,13 @@ private:
 
         int maxTries = num_gpus;
 #if ( PMACC_CUDA_ENABLED == 1 )
-        cudaDeviceProp devProp;
-        cudaError rc;
-        CUDA_CHECK(cudaGetDeviceProperties(&devProp, deviceNumber));
+        //cudaDeviceProp devProp;
+        cudaError rc = cuplaSuccess;
+        //CUDA_CHECK(cudaGetDeviceProperties(&devProp, deviceNumber));
 
         /* if the gpu compute mode is set to default we use the given `deviceNumber` */
-        if (devProp.computeMode == cudaComputeModeDefault)
-            maxTries = 1;
+        //if (devProp.computeMode == cudaComputeModeDefault)
+            //maxTries = 1;
 
 #endif
         for (int deviceOffset = 0; deviceOffset < maxTries; ++deviceOffset)
@@ -222,9 +222,9 @@ private:
 
             if (rc == cudaSuccess)
             {
-                cudaDeviceProp dprop;
-                CUDA_CHECK(cudaGetDeviceProperties(&dprop, tryDeviceId));
-                log<ggLog::CUDA_RT > ("Set device to %1%: %2%") % tryDeviceId % dprop.name;
+                //cudaDeviceProp dprop;
+                //CUDA_CHECK(cudaGetDeviceProperties(&dprop, tryDeviceId));
+                //log<ggLog::CUDA_RT > ("Set device to %1%: %2%") % tryDeviceId % dprop.name;
                 if(cudaErrorSetOnActiveProcess == cudaSetDeviceFlags(cudaDeviceScheduleSpin))
                 {
                     cudaGetLastError(); //reset all errors
@@ -232,7 +232,7 @@ private:
                      * - to set the flags reset the device and set flags again
                      */
                     CUDA_CHECK(cudaDeviceReset());
-                    CUDA_CHECK(cudaSetDeviceFlags(cudaDeviceScheduleSpin));
+                    //CUDA_CHECK(cudaSetDeviceFlags(cudaDeviceScheduleSpin));
                 }
                 CUDA_CHECK(cudaGetLastError());
                 break;
