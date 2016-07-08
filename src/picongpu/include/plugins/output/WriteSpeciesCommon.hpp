@@ -58,7 +58,11 @@ struct MallocMemory
         type* ptr = NULL;
         if (size != 0)
         {
+#if ( PMACC_CUDA_ENABLED == 1 )
             CUDA_CHECK(cudaHostAlloc(&ptr, size * sizeof (type), cudaHostAllocMapped));
+#else
+            ptr = new type[size];
+#endif
         }
         v1.getIdentifier(T_Type()) = VectorDataBox<type>(ptr);
 
@@ -119,7 +123,11 @@ struct GetDevicePtr
         type* srcPtr = src.getIdentifier(T_Type()).getPointer();
         if (srcPtr != NULL)
         {
+#if ( PMACC_CUDA_ENABLED == 1 )
             CUDA_CHECK(cudaHostGetDevicePointer(&ptr, srcPtr, 0));
+#else
+            ptr = srcPtr;
+#endif
         }
         dest.getIdentifier(T_Type()) = VectorDataBox<type>(ptr);
     }
@@ -136,7 +144,11 @@ struct FreeMemory
         type* ptr = value.getIdentifier(T_Type()).getPointer();
         if (ptr != NULL)
         {
+#if ( PMACC_CUDA_ENABLED == 1 )
             CUDA_CHECK(cudaFreeHost(ptr));
+#else
+            delete[] ptr;
+#endif
             ptr=NULL;
         }
     }
