@@ -85,9 +85,9 @@ namespace nvidia
         template<typename T_Type>
         struct AtomicAllIncKepler<T_Type, true>
         {
-            template< typename T_Acc >
+            template< typename T_Acc, typename T_Hierarchy >
             DINLINE T_Type
-            operator()(const T_Acc& acc,T_Type* ptr)
+            operator()(const T_Acc& acc,T_Type* ptr, const T_Hierarchy& hierarchy)
             {
                 /* Get a bitmask with 1 for each thread in the warp, that executes this */
                 const int mask = __ballot(1);
@@ -114,11 +114,13 @@ namespace nvidia
         {
             template< typename T_Acc, typename T_Hierarchy >
             DINLINE long long int
-            operator()(const T_Acc& acc, long long int* ptr, const T_Hierarchy& )
+            operator()(const T_Acc& acc, long long int* ptr, const T_Hierarchy&, const T_Hierarchy& hierarchy )
             {
                 return static_cast<long long int>(
                         AtomicAllIncKepler<unsigned long long int>()(
-                                reinterpret_cast<unsigned long long int*>(ptr)
+                            acc,
+                            reinterpret_cast<unsigned long long int*>(ptr),
+                            hierarchy
                         )
                 );
             }
