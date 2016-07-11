@@ -154,15 +154,31 @@ public:
             GridBuffer<int, DIM1> counterBuffer(DataSpace<DIM1>(1));
             AreaMapping < CORE + BORDER, MappingDesc > mapper(*(params->cellDescription));
 
-            /* this sanity check costs a little bit of time but hdf5 writing is slower */
-            __cudaKernel(copySpecies)
-                (mapper.getGridDim(), block)
-                (counterBuffer.getDeviceBuffer().getPointer(),
-                 deviceFrame, speciesTmp->getDeviceParticlesBox(),
-                 filter,
-                 particleOffset, /*relative to data domain (not to physical domain)*/
-                 mapper
-                 );
+            constexpr bool useElements = cupla::traits::IsThreadSeqAcc< cupla::AccThreadSeq >::value;
+            if(useElements)
+            {
+                const int cellsInSupercell = PMacc::math::CT::volume<SuperCellSize>::type::value;
+                __cudaKernel_OPTI(copySpecies<cellsInSupercell>)
+                    (mapper.getGridDim(), block)
+                    (counterBuffer.getDeviceBuffer().getPointer(),
+                     deviceFrame, speciesTmp->getDeviceParticlesBox(),
+                     filter,
+                     particleOffset, /*relative to data domain (not to physical domain)*/
+                     mapper
+                     );
+            }
+            else
+            {
+                __cudaKernel(copySpecies<>)
+                    (mapper.getGridDim(), block)
+                    (counterBuffer.getDeviceBuffer().getPointer(),
+                     deviceFrame, speciesTmp->getDeviceParticlesBox(),
+                     filter,
+                     particleOffset, /*relative to data domain (not to physical domain)*/
+                     mapper
+                     );
+            }
+
             counterBuffer.deviceToHost();
             log<picLog::INPUT_OUTPUT > ("HDF5:  ( end ) copy particle to host: %1%") % Hdf5FrameType::getName();
             __getTransactionEvent().waitForFinished();

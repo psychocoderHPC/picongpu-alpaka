@@ -27,6 +27,7 @@
 #include "simulation_types.hpp"
 #include "dimensions/DataSpaceOperations.hpp"
 #include "nvidia/atomic.hpp"
+#include "memory/dataTypes/Array.hpp"
 
 
 namespace picongpu
@@ -47,8 +48,8 @@ struct ConcatListOfFrames
 {
     DataSpace<simDim> m_gridDim;
 
-    ConcatListOfFrames(const DataSpace<simDim>& gridDim) :
-    m_gridDim(gridDim)
+    ConcatListOfFrames(const DataSpace<simDim>& gridDimension) :
+    m_gridDim(gridDimension)
     {
 
     }
@@ -73,7 +74,7 @@ struct ConcatListOfFrames
         {
             // local copy for each omp thread
             T_Filter filter = filterWindowDomain;
-            DataSpace<simDim> blockIdx(DataSpaceOperations<simDim>::map(m_gridDim, linearBlockIdx));
+            DataSpace<simDim> blockIndex(DataSpaceOperations<simDim>::map(m_gridDim, linearBlockIdx));
 
             using namespace PMacc::particles::operations;
 
@@ -92,7 +93,7 @@ struct ConcatListOfFrames
             int storageOffset[particlePerFrame];
 
 
-            const DataSpace<Mapping::Dim> block = mapper.getSuperCellIndex(blockIdx);
+            const DataSpace<Mapping::Dim> block = mapper.getSuperCellIndex(blockIndex);
             const DataSpace<Mapping::Dim> superCellPosition((block - mapper.getGuardingSuperCells()) * mapper.getSuperCellSize());
             filter.setSuperCellPosition(superCellPosition);
 
@@ -102,13 +103,13 @@ struct ConcatListOfFrames
             {
                 localCounter = 0;
                 /* clear storageOffset array*/
-                for (int threadIdx = 0; threadIdx < particlePerFrame; ++threadIdx)
+                for (int tIdx = 0; tIdx < particlePerFrame; ++tIdx)
                 {
-                    storageOffset[threadIdx] = -1;
-                    PMACC_AUTO(parSrc, (srcFramePtr[threadIdx]));
+                    storageOffset[tIdx] = -1;
+                    PMACC_AUTO(parSrc, (srcFramePtr[tIdx]));
                     /*count particle in frame*/
-                    if (parSrc[multiMask_] == 1 && filter(*srcFramePtr, threadIdx))
-                        storageOffset[threadIdx] = localCounter++;
+                    if (parSrc[multiMask_] == 1 && filter(*srcFramePtr, tIdx))
+                        storageOffset[tIdx] = localCounter++;
                 }
 
                 /* atomic update with openmp*/
@@ -118,12 +119,12 @@ struct ConcatListOfFrames
                     counter += localCounter;
                 }
 
-                for (int threadIdx = 0; threadIdx < particlePerFrame; ++threadIdx)
+                for (int tIdx = 0; tIdx < particlePerFrame; ++tIdx)
                 {
-                    if (storageOffset[threadIdx] != -1)
+                    if (storageOffset[tIdx] != -1)
                     {
-                        PMACC_AUTO(parSrc, (srcFramePtr[threadIdx]));
-                        PMACC_AUTO(parDest, destFrame[globalOffset + storageOffset[threadIdx]]);
+                        PMACC_AUTO(parSrc, (srcFramePtr[tIdx]));
+                        PMACC_AUTO(parDest, destFrame[globalOffset + storageOffset[tIdx]]);
                         PMACC_AUTO(parDestNoGlobalIdx, deselect<globalCellIdx<> >(parDest));
                         assign(parDestNoGlobalIdx, parSrc);
                         /*calculate global cell index*/
@@ -140,7 +141,7 @@ struct ConcatListOfFrames
 
 };
 
-
+template< int T_elemSize = 1 >
 struct copySpecies
 {
 /** copy particle of a species to a host frame
@@ -162,6 +163,7 @@ template<class T_DestFrame, class T_SrcBox, class T_Filter, class T_Space, class
 DINLINE void operator()(const T_Acc& acc, int* counter, T_DestFrame destFrame, T_SrcBox srcBox, T_Filter filter, T_Space particleOffset, T_Mapping mapper) const
 {
     using namespace PMacc::particles::operations;
+    namespace mapElem = mappings::elements;
 
     typedef T_DestFrame DestFrameType;
     typedef typename T_SrcBox::FrameType SrcFrameType;
@@ -174,10 +176,11 @@ DINLINE void operator()(const T_Acc& acc, int* counter, T_DestFrame destFrame, T
     sharedMem(localCounter,int);
     sharedMem(globalOffset,int);
 
-    int storageOffset;
-
+    typedef typename PMacc::math::CT::Int<T_elemSize>::vector_type ElemSize;
+    PMacc::Array<int, ElemSize> storageOffsetArray;
 
     const DataSpace<Mapping::Dim> block = mapper.getSuperCellIndex(DataSpace<simDim > (blockIdx));
+    const int stridedLinearThreadIdx = threadIdx.x * T_elemSize;
     const DataSpace<Mapping::Dim> superCellPosition((block - mapper.getGuardingSuperCells()) * mapper.getSuperCellSize());
     filter.setSuperCellPosition(superCellPosition);
     if (threadIdx.x == 0)
@@ -188,29 +191,45 @@ DINLINE void operator()(const T_Acc& acc, int* counter, T_DestFrame destFrame, T
     __syncthreads();
     while (srcFramePtr.isValid()) //move over all Frames
     {
-        PMACC_AUTO(parSrc, (srcFramePtr[threadIdx.x]));
-        storageOffset = -1;
-        /*count particle in frame*/
-        if (parSrc[multiMask_] == 1 && filter(*srcFramePtr, threadIdx.x))
-            storageOffset = nvidia::atomicAllInc(acc, &localCounter);
+        mapElem::vectorize<DIM1>(
+        [&]( const int idx )
+            {
+                const int linearThreadIdx = stridedLinearThreadIdx + idx;
+                PMACC_AUTO(parSrc, (srcFramePtr[linearThreadIdx]));
+                storageOffsetArray(idx) = -1;
+                /*count particle in frame*/
+                if (parSrc[multiMask_] == 1 && filter(*srcFramePtr, linearThreadIdx))
+                    storageOffsetArray(idx) = nvidia::atomicAllInc(acc, &localCounter, ::alpaka::hierarchy::Threads());
+            },
+            T_elemSize
+         );
         __syncthreads();
-        if (threadIdx.x == 0)
+
+        if (stridedLinearThreadIdx == 0)
         {
             /*reserve host memory for particle*/
-            globalOffset = atomicAdd(counter, localCounter);
+            globalOffset = atomicAdd(counter, localCounter, ::alpaka::hierarchy::Blocks());
         }
         __syncthreads();
-        if (storageOffset != -1)
-        {
-            PMACC_AUTO(parDest, destFrame[globalOffset + storageOffset]);
-            PMACC_AUTO(parDestNoGlobalIdx, deselect<globalCellIdx<> >(parDest));
-            assign(parDestNoGlobalIdx, parSrc);
-            /*calculate global cell index*/
-            DataSpace<Mapping::Dim> localCell(DataSpaceOperations<Mapping::Dim>::template map<Block>(parSrc[localCellIdx_]));
-            parDest[globalCellIdx_] = particleOffset + superCellPosition + localCell;
-        }
+        mapElem::vectorize<DIM1>(
+        [&]( const int idx )
+            {
+                const int linearThreadIdx = stridedLinearThreadIdx + idx;
+                if (storageOffsetArray(idx) != -1)
+                {
+                    PMACC_AUTO(parSrc, (srcFramePtr[linearThreadIdx]));
+                    PMACC_AUTO(parDest, destFrame[globalOffset + storageOffsetArray(idx)]);
+                    PMACC_AUTO(parDestNoGlobalIdx, deselect<globalCellIdx<> >(parDest));
+                    assign(parDestNoGlobalIdx, parSrc);
+                    /*calculate global cell index*/
+                    DataSpace<Mapping::Dim> localCell(DataSpaceOperations<Mapping::Dim>::template map<Block>(parSrc[localCellIdx_]));
+                    parDest[globalCellIdx_] = particleOffset + superCellPosition + localCell;
+                }
+            },
+            T_elemSize
+         );
         __syncthreads();
-        if (threadIdx.x == 0)
+        if (stridedLinearThreadIdx == 0)
         {
             /*get next frame in supercell*/
             srcFramePtr = srcBox.getNextFrame(srcFramePtr);
