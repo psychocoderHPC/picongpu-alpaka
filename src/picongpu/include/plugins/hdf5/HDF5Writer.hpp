@@ -63,10 +63,10 @@
 #include <boost/type_traits.hpp>
 
 #include "plugins/hdf5/WriteFields.hpp"
-#if 0
+
 #include "plugins/hdf5/WriteSpecies.hpp"
 #include "plugins/hdf5/restart/LoadSpecies.hpp"
-#endif
+
 #include "plugins/hdf5/restart/RestartFieldLoader.hpp"
 #include "memory/boxes/DataBoxDim1Access.hpp"
 
@@ -218,11 +218,11 @@ public:
         /* load all fields */
         ForEach<FileCheckpointFields, LoadFields<bmpl::_1> > forEachLoadFields;
         forEachLoadFields(params);
-#if 0
+
         /* load all particles */
         ForEach<FileCheckpointParticles, LoadSpecies<bmpl::_1> > forEachLoadSpecies;
         forEachLoadSpecies(params, restartChunkSize);
-#endif
+
         /* close datacollector */
         log<picLog::INPUT_OUTPUT > ("HDF5 close DataCollector with file: %1%") % restartFilename;
         mThreadParams.dataCollector->close();
@@ -439,7 +439,7 @@ private:
             forEachWriteFields(threadParams);
         }
         log<picLog::INPUT_OUTPUT > ("HDF5: ( end ) writing fields.");
-#if 0
+
         /* write all particle species */
         log<picLog::INPUT_OUTPUT > ("HDF5: (begin) writing particle species.");
         if (threadParams->isCheckpoint)
@@ -452,7 +452,7 @@ private:
             ForEach<FileOutputParticles, WriteSpecies<bmpl::_1> > writeSpecies;
             writeSpecies(threadParams, std::string(), particleOffset);
         }
-#endif
+
         log<picLog::INPUT_OUTPUT > ("HDF5: ( end ) writing particle species.");
 
         return NULL;
