@@ -176,13 +176,23 @@ namespace picongpu
         typename ParticlesClass::ParticlesBoxType pBox = parClass.getDeviceParticlesBox( );
         FieldTmp::DataBoxType tmpBox = this->fieldTmp->getDeviceBuffer( ).getDataBox( );
         FrameSolver solver;
+	 constexpr bool useElements = cupla::traits::IsThreadSeqAcc< cupla::AccThreadSeq >::value;
 
         do
         {
-            __cudaKernel( kernelComputeSupercells<BlockArea, AREA> )
-                ( mapper.getGridDim( ), mapper.getSuperCellSize( ) )
-                ( tmpBox,
-                  pBox, solver, mapper );
+	     if(useElements)
+	     {
+		  using ElemSize = typename  MappingDesc::SuperCellSize;
+		  __cudaKernel_OPTI( kernelComputeSupercells<BlockArea, AREA, ElemSize> )
+		      ( mapper.getGridDim( ), mapper.getSuperCellSize( ) )
+		      ( tmpBox, pBox, solver, mapper );
+	     }
+	     else
+	     {
+		  __cudaKernel( kernelComputeSupercells<BlockArea, AREA> )
+		      ( mapper.getGridDim( ), mapper.getSuperCellSize( ) )
+		      ( tmpBox, pBox, solver, mapper );
+	     }
         } while( mapper.next( ) );
     }
 
@@ -221,13 +231,28 @@ namespace picongpu
         dim3 grid = mapper.getGridDim( );
 
         const DataSpace<simDim> direction = Mask::getRelativeDirections<simDim > ( mapper.getExchangeType( ) );
-        __cudaKernel( kernelBashValue )
-            ( grid, mapper.getSuperCellSize( ) )
-            ( fieldTmp->getDeviceBuffer( ).getDataBox( ),
-              fieldTmp->getSendExchange( exchangeType ).getDeviceBuffer( ).getDataBox( ),
-              fieldTmp->getSendExchange( exchangeType ).getDeviceBuffer( ).getDataSpace( ),
-              direction,
-              mapper );
+        constexpr bool useElements = cupla::traits::IsThreadSeqAcc< cupla::AccThreadSeq >::value;
+        if(useElements)
+        {
+            using ElemSize = typename  MappingDesc::SuperCellSize;
+            __cudaKernel_OPTI( kernelBashValue<ElemSize> )
+                ( grid, mapper.getSuperCellSize( ) )
+                ( fieldTmp->getDeviceBuffer( ).getDataBox( ),
+                  fieldTmp->getSendExchange( exchangeType ).getDeviceBuffer( ).getDataBox( ),
+                  fieldTmp->getSendExchange( exchangeType ).getDeviceBuffer( ).getDataSpace( ),
+                  direction,
+                  mapper );
+        }
+        else
+        {
+            __cudaKernel( kernelBashValue<> )
+                ( grid, mapper.getSuperCellSize( ) )
+                ( fieldTmp->getDeviceBuffer( ).getDataBox( ),
+                  fieldTmp->getSendExchange( exchangeType ).getDeviceBuffer( ).getDataBox( ),
+                  fieldTmp->getSendExchange( exchangeType ).getDeviceBuffer( ).getDataSpace( ),
+                  direction,
+                  mapper );
+        }
     }
 
     void FieldTmp::insertField( uint32_t exchangeType )
@@ -237,12 +262,27 @@ namespace picongpu
         dim3 grid = mapper.getGridDim( );
 
         const DataSpace<simDim> direction = Mask::getRelativeDirections<simDim > ( mapper.getExchangeType( ) );
-        __cudaKernel( kernelInsertValue )
-            ( grid, mapper.getSuperCellSize( ) )
-            ( fieldTmp->getDeviceBuffer( ).getDataBox( ),
-              fieldTmp->getReceiveExchange( exchangeType ).getDeviceBuffer( ).getDataBox( ),
-              fieldTmp->getReceiveExchange( exchangeType ).getDeviceBuffer( ).getDataSpace( ),
-              direction, mapper );
+
+        constexpr bool useElements = cupla::traits::IsThreadSeqAcc< cupla::AccThreadSeq >::value;
+        if(useElements)
+        {
+            using ElemSize = typename  MappingDesc::SuperCellSize;
+            __cudaKernel_OPTI( kernelInsertValue<ElemSize> )
+                ( grid, mapper.getSuperCellSize( ) )
+                ( fieldTmp->getDeviceBuffer( ).getDataBox( ),
+                  fieldTmp->getReceiveExchange( exchangeType ).getDeviceBuffer( ).getDataBox( ),
+                  fieldTmp->getReceiveExchange( exchangeType ).getDeviceBuffer( ).getDataSpace( ),
+                  direction, mapper );
+        }
+        else
+        {
+            __cudaKernel( kernelInsertValue<> )
+                ( grid, mapper.getSuperCellSize( ) )
+                ( fieldTmp->getDeviceBuffer( ).getDataBox( ),
+                  fieldTmp->getReceiveExchange( exchangeType ).getDeviceBuffer( ).getDataBox( ),
+                  fieldTmp->getReceiveExchange( exchangeType ).getDeviceBuffer( ).getDataSpace( ),
+                  direction, mapper );
+        }
     }
 
     void FieldTmp::init( )
