@@ -333,7 +333,6 @@ DINLINE void operator()( const T_Acc& acc, ParBox pb, Mapping mapper ) const
                 if ( isParticleArray[idx] == true ) //\todo: bits zählen
                 {
                     nvidia::atomicAllInc( acc, &counterParticles, ::alpaka::hierarchy::Threads() );
-                    ++counterParticles;
                 }
             },
             T_elemSize
@@ -360,11 +359,7 @@ DINLINE void operator()( const T_Acc& acc, ParBox pb, Mapping mapper ) const
                 if ( threadIndex >= counterParticles && isParticleArray[idx] )
                 {
                     //any particle search a gap
-#if (PMACC_CUDA_ENABLED == 1)
-                    const int srcGapIdx = nvidia::atomicAllInc( acc, &srcGap );
-#else
-                    const int srcGapIdx = srcGap++;
-#endif
+                    const int srcGapIdx = nvidia::atomicAllInc( acc, &srcGap, ::alpaka::hierarchy::Threads() );
                     const int gapIdx = gapIndices_sh[srcGapIdx];
                     PMACC_AUTO( parDestFull, lastFrame[gapIdx] );
                     /*enable particle*/
@@ -690,12 +685,6 @@ DINLINE void operator()( const T_Acc& acc, ParBox pb,
 }
 };
 
-#if (PMACC_CUDA_ENABLED == 0)
-/* this mutex avoids that setAsLastFrame is not coherent over different grids
- * those run concurrent
- */
-std::mutex mutexKernelInsertParticles;
-#endif
 
 template< int T_elemSize = 1 >
 struct kernelInsertParticles
@@ -763,12 +752,9 @@ DINLINE void operator()( const T_Acc& acc, ParBox pb,
                                                                                 mapper.getGridSuperCells( ),
                                                                                 DataSpace<Dim>::create( mapper.getGuardingSuperCells( ) ) );
 
-        {
-#if (PMACC_CUDA_ENABLED == 0)
-            std::lock_guard<std::mutex> lk(mutexKernelInsertParticles);
-#endif
-            pb.setAsLastFrame( acc, frame, dstSuperCell );
-        }
+
+        pb.setAsLastFrame( acc, frame, dstSuperCell );
+
     }
 
 
