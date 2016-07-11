@@ -204,6 +204,7 @@ private:
             cudaSetDevice(tryDeviceId);
             break;
 #endif
+#if 0
 #if ( PMACC_CUDA_ENABLED == 1 )
             if(rc == cudaSuccess)
             {
@@ -247,6 +248,7 @@ private:
             {
                 CUDA_CHECK(rc); /*error message*/
             }
+#endif
 #endif
         }
     }
