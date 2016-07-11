@@ -59,7 +59,8 @@ struct MallocMemory
         if (size != 0)
         {
 #if ( PMACC_CUDA_ENABLED == 1 )
-            CUDA_CHECK(cudaHostAlloc(&ptr, size * sizeof (type), cudaHostAllocMapped));
+            ///CUDA_CHECK(  \todo: mapped memory is not supported by cupla
+            cudaHostAlloc(&ptr, size * sizeof (type), cudaHostAllocMapped);
 #else
             ptr = new type[size];
 #endif
@@ -124,7 +125,8 @@ struct GetDevicePtr
         if (srcPtr != NULL)
         {
 #if ( PMACC_CUDA_ENABLED == 1 )
-            CUDA_CHECK(cudaHostGetDevicePointer(&ptr, srcPtr, 0));
+            //CUDA_CHECK( because cupla not support cudaHostGetDevicePointer we need to ignore the test
+            cudaHostGetDevicePointer(&ptr, srcPtr, 0);
 #else
             ptr = srcPtr;
 #endif
@@ -145,7 +147,8 @@ struct FreeMemory
         if (ptr != NULL)
         {
 #if ( PMACC_CUDA_ENABLED == 1 )
-            CUDA_CHECK(cudaFreeHost(ptr));
+            ///CUDA_CHECK( \todo: not implemented in cupla
+            cudaFreeHost(ptr);
 #else
             delete[] ptr;
 #endif
