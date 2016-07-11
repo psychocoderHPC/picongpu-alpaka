@@ -82,7 +82,8 @@ namespace picongpu
     typedef MakeSeq<FieldE, FieldB, FieldJ>::type NativeFileOutputFields;
 
     typedef MakeSeq<
-        NativeFileOutputFields
+        NativeFileOutputFields,
+        FieldTmpSolvers
     >::type FileOutputFields;
 
 

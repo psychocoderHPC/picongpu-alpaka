@@ -42,26 +42,33 @@ namespace picongpu
 {
     using namespace PMacc;
 
-    template< class BlockDescription_, uint32_t AREA >
+    template<
+        class BlockDescription_,
+        uint32_t AREA,
+        typename T_ElemSize = typename PMacc::math::CT::make_Int<simDim,1>::type::vector_type
+    >
     struct kernelComputeSupercells
     {
     template< class TmpBox, class ParBox, class FrameSolver, class Mapping, typename T_Acc>
     DINLINE void operator()( const T_Acc& acc,  TmpBox fieldTmp, ParBox boxPar, FrameSolver frameSolver, Mapping mapper ) const
     {
+        namespace mapElem = mappings::elements;
+
         typedef typename ParBox::FramePtr FramePtr;
         typedef typename BlockDescription_::SuperCellSize SuperCellSize;
         const DataSpace<simDim> block( mapper.getSuperCellIndex( DataSpace<simDim > ( blockIdx ) ) );
 
+        const DataSpace<simDim > stridedThreadIndex( DataSpace<simDim >(threadIdx) * T_ElemSize::toRT() );
 
-        const DataSpace<simDim > threadIndex( threadIdx );
-        const int linearThreadIdx = DataSpaceOperations<simDim>::template map<SuperCellSize > ( threadIndex );
+        /* thread id, can be greater than cellsPerSuperCell*/
+        const int stridedLinearThreadIdx = DataSpaceOperations<simDim>::template map<SuperCellSize > (stridedThreadIndex);
 
         sharedMem(frame, typename PMacc::traits::GetEmptyDefaultConstructibleType<FramePtr>::type);
 
         sharedMem(particlesInSuperCell, lcellId_t);
 
 
-        if( linearThreadIdx == 0 )
+        if( stridedLinearThreadIdx == 0 )
         {
             frame = boxPar.getLastFrame( block );
             particlesInSuperCell = boxPar.getSuperCell( block ).getSizeLastFrame( );
@@ -74,18 +81,29 @@ namespace picongpu
         PMACC_AUTO( cachedVal, CachedBox::create < 0, typename TmpBox::ValueType > ( acc, BlockDescription_( ) ) );
         Set<typename TmpBox::ValueType > set( float_X( 0.0 ) );
 
-        ThreadCollective<BlockDescription_> collective( linearThreadIdx );
+        constexpr int stride = PMacc::math::CT::volume<SuperCellSize>::type::value / PMacc::math::CT::volume<T_ElemSize>::type::value;
+
+        ThreadCollective<BlockDescription_, stride> collective( stridedThreadIndex );
         collective( set, cachedVal );
 
         __syncthreads( );
         while( frame.isValid() )
         {
-            if( linearThreadIdx < particlesInSuperCell )
-            {
-                frameSolver( acc, *frame, linearThreadIdx, SuperCellSize::toRT(), cachedVal );
-            }
+            mapElem::vectorize<simDim>(
+                [&]( const DataSpace<simDim>& idx )
+                {
+                    DataSpace<simDim> threadIndex( stridedThreadIndex + idx );
+                    const int linearThreadIdx = DataSpaceOperations<simDim>::template map<SuperCellSize > ( threadIndex );
+                    if( linearThreadIdx < particlesInSuperCell )
+                    {
+                        frameSolver( acc, *frame, linearThreadIdx, SuperCellSize::toRT(), cachedVal );
+                    }
+                },
+                T_ElemSize::toRT()
+            );
             __syncthreads( );
-            if( linearThreadIdx == 0 )
+
+            if( stridedLinearThreadIdx == 0 )
             {
                 frame = boxPar.getPreviousFrame( frame );
                 particlesInSuperCell = PMacc::math::CT::volume<SuperCellSize>::type::value;
@@ -101,6 +119,7 @@ namespace picongpu
     }
     };
 
+    template<typename T_ElemSize = typename PMacc::math::CT::make_Int<simDim,1>::type::vector_type >
     struct kernelBashValue
     {
     template<class Box, class Mapping, typename T_Acc>
@@ -111,33 +130,43 @@ namespace picongpu
                                      DataSpace<simDim> direction,
                                      Mapping mapper ) const
     {
-        const DataSpace<Mapping::Dim> threadIndex(threadIdx);
+        namespace mapElem = mappings::elements;
         const DataSpace<simDim> blockCell(
                                            mapper.getSuperCellIndex( DataSpace<simDim > ( blockIdx ) )
                                            * Mapping::SuperCellSize::toRT( )
                                            );
-        const DataSpace<Mapping::Dim> sourceCell( blockCell + threadIndex );
+        const DataSpace<simDim> stridedThreadIndex( DataSpace<simDim >(threadIdx) * T_ElemSize::toRT() );
 
-        /*origin in area from local GPU*/
-        DataSpace<simDim> nullSourceCell(
-                                          mapper.getSuperCellIndex( DataSpace<simDim > ( ) )
-                                          * Mapping::SuperCellSize::toRT( )
-                                          );
-        DataSpace<simDim> targetCell( sourceCell - nullSourceCell );
-
-        for (uint32_t d = 0; d < simDim; ++d)
-        {
-            if( direction[d] == -1 )
+        mapElem::vectorize<simDim>(
+            [&]( const DataSpace<simDim>& idx )
             {
-                if( threadIndex[d] < SuperCellSize::toRT()[d] - exchangeSize[d] ) return;
-                targetCell[d] -= SuperCellSize::toRT()[d] - exchangeSize[d];
-            }
-            else if( ( direction[d] == 1 ) && ( threadIndex[d] >= exchangeSize[d] ) ) return;
-        }
-        targetJ( targetCell ) = fieldTmp( sourceCell );
+                const DataSpace<simDim> threadIndex( stridedThreadIndex + idx );
+                const DataSpace<Mapping::Dim> sourceCell( blockCell + threadIndex );
+
+                /*origin in area from local GPU*/
+                DataSpace<simDim> nullSourceCell(
+                                                  mapper.getSuperCellIndex( DataSpace<simDim > ( ) )
+                                                  * Mapping::SuperCellSize::toRT( )
+                                                  );
+                DataSpace<simDim> targetCell( sourceCell - nullSourceCell );
+
+                for (uint32_t d = 0; d < simDim; ++d)
+                {
+                    if( direction[d] == -1 )
+                    {
+                        if( threadIndex[d] < SuperCellSize::toRT()[d] - exchangeSize[d] ) return;
+                        targetCell[d] -= SuperCellSize::toRT()[d] - exchangeSize[d];
+                    }
+                    else if( ( direction[d] == 1 ) && ( threadIndex[d] >= exchangeSize[d] ) ) return;
+                }
+                targetJ( targetCell ) = fieldTmp( sourceCell );
+            },
+            T_ElemSize::toRT()
+        );
     }
     };
 
+    template<typename T_ElemSize = typename PMacc::math::CT::make_Int<simDim,1>::type::vector_type >
     struct kernelInsertValue
     {
     template<class Box, class Mapping, typename T_Acc>
@@ -148,36 +177,45 @@ namespace picongpu
                                        DataSpace<simDim> direction,
                                        Mapping mapper ) const
     {
-        const DataSpace<Mapping::Dim> threadIndex(threadIdx);
+        namespace mapElem = mappings::elements;
         const DataSpace<simDim> blockCell(
                                            mapper.getSuperCellIndex( DataSpace<simDim > ( blockIdx ) )
                                            * Mapping::SuperCellSize::toRT( )
                                            );
-        DataSpace<Mapping::Dim> targetCell( blockCell + threadIndex );
+        const DataSpace<simDim> stridedThreadIndex( DataSpace<simDim >(threadIdx) * T_ElemSize::toRT() );
 
-        /*origin in area from local GPU*/
-        DataSpace<simDim> nullSourceCell(
-                                          mapper.getSuperCellIndex( DataSpace<simDim > ( ) )
-                                          * Mapping::SuperCellSize::toRT( )
-                                          );
-        DataSpace<simDim> sourceCell( targetCell - nullSourceCell );
-
-        for (uint32_t d = 0; d < simDim; ++d)
-        {
-            if( direction[d] == 1 )
+        mapElem::vectorize<simDim>(
+            [&]( const DataSpace<simDim>& idx )
             {
-                if( threadIndex[d] < SuperCellSize::toRT()[d] - exchangeSize[d] ) return;
-                sourceCell[d] -= SuperCellSize::toRT()[d] - exchangeSize[d];
-                targetCell[d] -= SuperCellSize::toRT()[d];
-            }
-            else if( direction[d] == -1 )
-            {
-                if( threadIndex[d] >= exchangeSize[d] ) return;
-                targetCell[d] += SuperCellSize::toRT()[d];
-            }
-        }
+                const DataSpace<simDim> threadIndex( stridedThreadIndex + idx );
+                DataSpace<Mapping::Dim> targetCell(blockCell + threadIndex);
 
-        fieldTmp( targetCell ) += sourceTmp( sourceCell );
+                /*origin in area from local GPU*/
+                DataSpace<simDim> nullSourceCell(
+                                                  mapper.getSuperCellIndex( DataSpace<simDim > ( ) )
+                                                  * Mapping::SuperCellSize::toRT( )
+                                                  );
+                DataSpace<simDim> sourceCell( targetCell - nullSourceCell );
+
+                for (uint32_t d = 0; d < simDim; ++d)
+                {
+                    if( direction[d] == 1 )
+                    {
+                        if( threadIndex[d] < SuperCellSize::toRT()[d] - exchangeSize[d] ) return;
+                        sourceCell[d] -= SuperCellSize::toRT()[d] - exchangeSize[d];
+                        targetCell[d] -= SuperCellSize::toRT()[d];
+                    }
+                    else if( direction[d] == -1 )
+                    {
+                        if( threadIndex[d] >= exchangeSize[d] ) return;
+                        targetCell[d] += SuperCellSize::toRT()[d];
+                    }
+                }
+
+            fieldTmp( targetCell ) += sourceTmp( sourceCell );
+            },
+            T_ElemSize::toRT()
+        );
     }
     };
 
