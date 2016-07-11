@@ -214,7 +214,8 @@ public:
         FramePtr oldFirstFramePtr(
             (FrameType*) atomicExch(
                 (unsigned long long int*) firstFrameNativPtr,
-                (unsigned long long int) frame.ptr
+                (unsigned long long int) frame.ptr,
+                ::alpaka::hierarchy::Grids()
             )
         );
 
@@ -253,7 +254,8 @@ public:
         FramePtr oldLastFramePtr(
             (FrameType*) atomicExch(
                 (unsigned long long int*) lastFrameNativPtr,
-                (unsigned long long int) frame.ptr
+                (unsigned long long int) frame.ptr,
+                ::alpaka::hierarchy::Grids()
             )
         );
 
