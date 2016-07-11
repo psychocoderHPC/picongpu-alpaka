@@ -1,0 +1,100 @@
+/**
+ * Copyright 2013-2016 Axel Huebl, Rene Widera, Felix Schmitt,
+ *                     Richard Pausch, Marco Garten
+ *
+ * This file is part of PIConGPU.
+ *
+ * PIConGPU is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * PIConGPU is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with PIConGPU.
+ * If not, see <http://www.gnu.org/licenses/>.
+ */
+
+
+
+#pragma once
+
+#include "particles/gasProfiles/profiles.def"
+/* preprocessor struct generator */
+#include "preprocessor/struct.hpp"
+
+namespace picongpu
+{
+namespace SI
+{
+/** The maximum density in particles per m^3 in the gas distribution
+ *  unit: ELEMENTS/m^3
+ *
+ * He (2e- / Atom ) with 1.e15 He / m^3
+ *                      = 2.e15 e- / m^3 */
+BOOST_CONSTEXPR_OR_CONST float_64 GAS_DENSITY_SI = 1.e30;
+
+}
+
+//##########################################################################
+//############## special gas profiles ######################################
+//##########################################################################
+namespace gasProfiles
+{
+
+struct FreeFormulaFunctor
+{
+
+    /**
+     * This formula uses SI quantities only
+     * The profile will be multiplied by GAS_DENSITY.
+     *
+     * @param position_SI total offset including all slides [in meter]
+     * @param cellSize_SI cell sizes [in meter]
+     *
+     * @return float_X density [normalized to 1.0]
+     */
+    HDINLINE float_X operator()(const floatD_64& position_SI, const floatD_64& cellSize_SI)
+    {
+        const float_64 mx = 1e-6;
+        const float_64 my = 1.25e-6;
+        const float_64 width = 0.4e-6;
+        const float_64 angle = 80 * PI/180.0;
+
+        float_64 a = 0.1;
+        const float_64 wa = 0.5e-6;
+
+        const float_64 x( position_SI.x() - mx);
+        const float_64 y( position_SI.y() - my);
+        const float_64 m = tan(angle);
+        const float_64 mw = width / (2.0*cos(angle));
+        const float_64 sx = m*y - mw;
+        const float_64 ex = m*y + mw;
+
+        float_64 dist = 0.0;
+        if(x < sx)
+            dist = sx - x;
+        else if(x > ex)
+            dist = x - ex;
+        else
+            return 1.0;
+
+        a = log(1.0/a);
+        dist *= cos(angle);
+        return exp(- a*dist/wa);
+    }
+};
+
+
+
+/* definition of gas free formula */
+typedef FreeFormulaImpl<FreeFormulaFunctor> FreeFormula;
+
+
+}//namespace gasProfiles
+
+} //namepsace picongpu
