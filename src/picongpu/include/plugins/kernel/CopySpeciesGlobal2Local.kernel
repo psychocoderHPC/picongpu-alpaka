@@ -116,10 +116,10 @@ DINLINE void operator()(const T_Acc& acc, T_CounterBox counter, T_DestBox destBo
         if (masterIdx == linearThreadIdx)
         {
             /* counter[2] -> number of used frames */
-            nvidia::atomicAllInc(acc, &(counter[2]));
+            nvidia::atomicAllInc(acc, &(counter[2]), ::alpaka::hierarchy::Blocks());
             DestFramePtr tmpFrame = destBox.getEmptyFrame();
             destFramePtr[linearThreadIdx] = tmpFrame;
-            destBox.setAsFirstFrame(tmpFrame, superCellIdx + cellDesc.getGuardingSuperCells());
+            destBox.setAsFirstFrame(acc, tmpFrame, superCellIdx + cellDesc.getGuardingSuperCells());
         }
     }
     __syncthreads();
@@ -135,7 +135,7 @@ DINLINE void operator()(const T_Acc& acc, T_CounterBox counter, T_DestBox destBo
         /* counter[1] -> number of loaded particles
          * this counter is evaluated on host side
          * (check that loaded particles by this kernel == loaded particles from HDF5 file)*/
-        nvidia::atomicAllInc(acc, &(counter[1]));
+        nvidia::atomicAllInc(acc, &(counter[1]), ::alpaka::hierarchy::Blocks());
     }
 }
 };
