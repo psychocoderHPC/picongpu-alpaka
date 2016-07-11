@@ -96,7 +96,7 @@ DINLINE void operator()(const T_Acc& acc, T_MyParBox myBox, T_OtherFrameBox othe
         [&]( const int idx )
         {
             const int linearThreadIdx = stridedLinearThreadIdx + idx;
-            const DataSpace<simDim> localCellIdx = block
+            const DataSpace<simDim> localCellIdx = block * SuperCellSize::toRT()
                     + DataSpaceOperations<simDim>::map<SuperCellSize>(linearThreadIdx)
                     - mapper.getGuardingSuperCells() * SuperCellSize::toRT();
             manipulateFunctorArray(DataSpace<DIM1>(idx)) = manipulateFunctor.get(acc, localCellIdx);
