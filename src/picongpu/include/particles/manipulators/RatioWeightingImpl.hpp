@@ -33,16 +33,13 @@ namespace particles
 namespace manipulators
 {
 
+namespace detail
+{
 struct RatioWeightingImpl
 {
 
-    template<typename T_SpeciesType>
-    struct apply
-    {
-        typedef RatioWeightingImpl type;
-    };
 
-    HINLINE RatioWeightingImpl(uint32_t)
+    DINLINE RatioWeightingImpl()
     {
     }
 
@@ -66,7 +63,7 @@ struct RatioWeightingImpl
      * \see picongpu::particles::ManipulateCloneSpecies , picongpu::kernelCloneParticles
      */
     template<typename T_DesParticle, typename T_SrcParticle, typename T_Acc>
-    DINLINE void operator()(const T_Acc& acc, const DataSpace<simDim>&,
+    DINLINE void operator()(const T_Acc& ,
                             T_DesParticle& particleDes, T_SrcParticle&,
                             const bool isDesParticle, const bool isSrcParticle)
     {
@@ -81,6 +78,38 @@ struct RatioWeightingImpl
         }
     }
 };
+} //namespace detail
+
+
+struct RatioWeightingImpl
+{
+    template<typename T_SpeciesType>
+    struct apply
+    {
+        typedef detail::RatioWeightingImpl type;
+    };
+
+    HINLINE RatioWeightingImpl(uint32_t )
+    {
+
+    }
+
+    template<typename T_Acc>
+    struct Get
+    {
+        typedef detail::RatioWeightingImpl type;
+    };
+
+    template<typename T_Acc>
+    typename Get<T_Acc>::type
+    DINLINE get(const T_Acc& , const DataSpace<simDim>& ) const
+    {
+        typedef typename Get<T_Acc>::type Functor;
+
+        return Functor( );
+    }
+};
+
 
 } //namespace manipulators
 } //namespace particles
