@@ -33,16 +33,13 @@ namespace particles
 namespace manipulators
 {
 
+namespace detail
+{
 struct ProtonTimesWeightingImpl
 {
 
-    template<typename T_SpeciesType>
-    struct apply
-    {
-        typedef ProtonTimesWeightingImpl type;
-    };
 
-    HINLINE ProtonTimesWeightingImpl(uint32_t)
+    DINLINE ProtonTimesWeightingImpl()
     {
     }
 
@@ -61,7 +58,7 @@ struct ProtonTimesWeightingImpl
      * \see picongpu::particles::ManipulateCloneSpecies , picongpu::kernelCloneParticles
      */
     template<typename T_DestParticle, typename T_SrcParticle, typename T_Acc>
-    DINLINE void operator()(const T_Acc& acc, const DataSpace<simDim>&,
+    DINLINE void operator()(const T_Acc& acc, 
                             T_DestParticle& particleDest, T_SrcParticle&,
                             const bool isDestParticle, const bool isSrcParticle)
     {
@@ -70,6 +67,36 @@ struct ProtonTimesWeightingImpl
             const float_X protonNumber = traits::GetAtomicNumbers<T_SrcParticle>::type::numberOfProtons;
             particleDest[weighting_] *= protonNumber;
         }
+    }
+};
+} //namespace detail
+
+struct ProtonTimesWeightingImpl
+{
+    template<typename T_SpeciesType>
+    struct apply
+    {
+        typedef detail::ProtonTimesWeightingImpl type;
+    };
+
+    HINLINE ProtonTimesWeightingImpl(uint32_t )
+    {
+
+    }
+
+    template<typename T_Acc>
+    struct Get
+    {
+        typedef detail::ProtonTimesWeightingImpl type;
+    };
+
+    template<typename T_Acc>
+    typename Get<T_Acc>::type
+    DINLINE get(const T_Acc& , const DataSpace<simDim>& ) const
+    {
+        typedef typename Get<T_Acc>::type Functor;
+
+        return Functor( );
     }
 };
 
