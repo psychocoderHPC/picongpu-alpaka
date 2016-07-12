@@ -25,6 +25,19 @@
 
 namespace picongpu
 {
+    namespace laser
+    {
+        /** cell from top where the laser is initialized
+         *
+         * if `laserPlain == 0` than the absorber are disabled.
+         * if `laserPlain > absorbercells negative` the negative absorber in y
+         * direction is enabled
+         *
+         * `laserPlain` must be leather than  the size of the top gpu in y direction
+         */
+        BOOST_CONSTEXPR_OR_CONST int laserPlain = 0;
+    }
+
     namespace laserGaussianBeam
     {
         // Asymetric sinus used: starts with phase=0 at center --> E-field=0 at center
