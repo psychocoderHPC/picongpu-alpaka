@@ -209,7 +209,7 @@ void FieldE::laserManipulation( uint32_t currentStep )
                 gridBlocks,
                 blockSize
             )
-            ( this->getDeviceDataBox( ), laser->getLaserManipulator( currentStep ) );
+            ( this->getDeviceDataBox( ), laser->getLaserManipulator( currentStep ), ABSORBER_CELLS[1][0] );
     }
     else
     {
@@ -218,7 +218,7 @@ void FieldE::laserManipulation( uint32_t currentStep )
                 gridBlocks,
                 blockSize
             )
-            ( this->getDeviceDataBox( ), laser->getLaserManipulator( currentStep ) );
+            ( this->getDeviceDataBox( ), laser->getLaserManipulator( currentStep ), ABSORBER_CELLS[1][0] );
     }
 }
 

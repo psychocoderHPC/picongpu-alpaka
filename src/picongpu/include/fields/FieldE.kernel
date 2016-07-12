@@ -39,7 +39,7 @@ template< typename T_ElemSize = typename PMacc::math::CT::make_Int<simDim,1>::ty
 struct kernelLaserE
 {
 template<class EBox, typename T_Acc>
-DINLINE void operator()(const T_Acc& acc, EBox fieldE, LaserManipulator lMan) const
+DINLINE void operator()(const T_Acc& acc, EBox fieldE, LaserManipulator lMan, int absorberCellsYNegative) const
 {
     DataSpace<simDim> cellOffset;
     const DataSpace<simDim> guardSize(MappingDesc::SuperCellSize::toRT() * GUARD_SIZE);
@@ -87,8 +87,9 @@ DINLINE void operator()(const T_Acc& acc, EBox fieldE, LaserManipulator lMan) co
                  *  \todo What about the B-Field in the second plane?
                  */
                 DataSpace<simDim> dataCellOffset(cellOffset + idx);
-                dataCellOffset.y()=totalOffsetY;
-                fieldE(dataCellOffset + guardSize) = lMan.getManipulation(dataCellOffset);
+                dataCellOffset.y()=totalOffsetY + laser::laserPlain;
+                float_X amplitudeFactor = laser::laserPlain > absorberCellsYNegative ? float_X(2.0) : float_X(1.0);
+                fieldE(dataCellOffset + guardSize) += amplitudeFactor * lMan.getManipulation(dataCellOffset);
             }
         },
         T_ElemSize::toRT()
