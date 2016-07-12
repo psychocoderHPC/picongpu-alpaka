@@ -68,10 +68,14 @@ public:
                 /* disable the absorber on top side if
                  *      no slide was performed and
                  *      laser init time is not over
+                 *      laser::laserPlain <= absorber cells in negative y direction
                  */
-                if (numSlides == 0 && ((currentStep * DELTA_T) <= laserProfile::INIT_TIME))
+                if( laser::laserPlain <= ABSORBER_CELLS[1][0])
                 {
-                    if (i == TOP) continue; /*disable laser on top side*/
+                    if (numSlides == 0 && ((currentStep * DELTA_T) <= laserProfile::INIT_TIME))
+                    {
+                        if (i == TOP) continue; /*disable laser on top side*/
+                    }
                 }
 
                 /* if sliding window is active we disable absorber on bottom side*/
