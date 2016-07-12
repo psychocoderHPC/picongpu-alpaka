@@ -83,10 +83,13 @@ namespace particles
  * the functors are called in order (from first to last functor)
  */
 typedef mpl::vector<
-
-	CreateGas<gasProfiles::FreeFormula, startPosition::Quiet, PIC_Electrons>,
-    CloneSpecies<PIC_Electrons,PIC_Ions>
-
+    /* at this point, the reference density is taken to calculate weightings */
+    CreateGas<gasProfiles::Foil, startPosition::Quiet, PIC_Proton>,
+    CreateGas<gasProfiles::Foil, startPosition::Quiet, PIC_Nitrogen>,
+    CreateGas<gasProfiles::Foil, startPosition::Quiet, PIC_Carbon>,
+    ManipulateCloneSpecies<manipulators::ProtonTimesWeightingImpl, PIC_Carbon, PIC_Electrons>,
+    ManipulateCloneSpecies<manipulators::ProtonTimesWeightingImpl, PIC_Nitrogen, PIC_Electrons>,
+    CloneSpecies<PIC_Proton, PIC_Electrons>
 > InitPipeline;
 
 } /* namespace particles */

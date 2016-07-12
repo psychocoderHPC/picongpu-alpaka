@@ -25,13 +25,26 @@
 
 namespace picongpu
 {
+    namespace laser
+    {
+        /** cell from top where the laser is initialized
+         *
+         * if `laserPlain == 0` than the absorber are disabled.
+         * if `laserPlain > absorbercells negative` the negative absorber in y
+         * direction is enabled
+         *
+         * `laserPlain` must be leather than  the size of the top gpu in y direction
+         */
+        BOOST_CONSTEXPR_OR_CONST int laserPlain = 64;
+    }
+
     namespace laserGaussianBeam
     {
         // Asymetric sinus used: starts with phase=0 at center --> E-field=0 at center
         namespace SI
         {
             /** unit: meter */
-            BOOST_CONSTEXPR_OR_CONST float_64 WAVE_LENGTH_SI = 0.8e-6;
+            BOOST_CONSTEXPR_OR_CONST float_64 WAVE_LENGTH_SI = 1.0e-6;
 
             /** UNITCONV */
             BOOST_CONSTEXPR_OR_CONST float_64 UNITCONV_A0_to_Amplitude_SI = -2.0 * PI / WAVE_LENGTH_SI * ::picongpu::SI::ELECTRON_MASS_SI * ::picongpu::SI::SPEED_OF_LIGHT_SI * ::picongpu::SI::SPEED_OF_LIGHT_SI / ::picongpu::SI::ELECTRON_CHARGE_SI;
@@ -40,7 +53,7 @@ namespace picongpu
             // calculate: _A0 = 8.549297e-6 * sqrt( Intensity[W/m^2] ) * wavelength[m] (linearly polarized)
 
             /** unit: none */
-            BOOST_CONSTEXPR_OR_CONST float_64 _A0  = 8.0;
+            BOOST_CONSTEXPR_OR_CONST float_64 _A0  = 20.0;
 
             /** unit: Volt /meter */
             BOOST_CONSTEXPR_OR_CONST float_64 AMPLITUDE_SI = _A0 * UNITCONV_A0_to_Amplitude_SI;
@@ -54,7 +67,7 @@ namespace picongpu
              *  Info:             FWHM_of_Intensity = FWHM_Illumination
              *                      = what a experimentalist calls "pulse duration"
              *  unit: seconds (1 sigma) */
-            BOOST_CONSTEXPR_OR_CONST float_64 PULSE_LENGTH_SI = 5.0e-15; //25.0e-15 / 1.17741;
+            BOOST_CONSTEXPR_OR_CONST float_64 PULSE_LENGTH_SI = 30e-15; //25.0e-15 / 1.17741;
 
             /** beam waist: distance from the axis where the pulse intensity (E^2)
              *              decreases to its 1/e^2-th part,
@@ -62,10 +75,10 @@ namespace picongpu
              * W0_SI = FWHM_of_Intensity / sqrt{ 2* ln(2) }
              *                             [   1.17741    ]
              *  unit: meter */
-            BOOST_CONSTEXPR_OR_CONST float_64 W0_SI = 5.0e-6 / 1.17741;
+            BOOST_CONSTEXPR_OR_CONST float_64 W0_SI = 1.5e-6;
             /** the distance to the laser focus in y-direction
              *  unit: meter */
-            BOOST_CONSTEXPR_OR_CONST float_64 FOCUS_POS_SI = 4.62e-5;
+            BOOST_CONSTEXPR_OR_CONST float_64 FOCUS_POS_SI = 1.25e-6;
         }
         /** The laser pulse will be initialized PULSE_INIT times of the PULSE_LENGTH
          *  unit: none */
@@ -80,7 +93,7 @@ namespace picongpu
             LINEAR_Z = 2u,
             CIRCULAR = 4u,
         };
-        BOOST_CONSTEXPR_OR_CONST PolarisationType Polarisation = CIRCULAR;
+        BOOST_CONSTEXPR_OR_CONST PolarisationType Polarisation = LINEAR_X;
     }
 
     namespace laserPulseFrontTilt

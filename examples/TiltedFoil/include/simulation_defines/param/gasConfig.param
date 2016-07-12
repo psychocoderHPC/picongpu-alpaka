@@ -36,7 +36,7 @@ namespace SI
  *
  * He (2e- / Atom ) with 1.e15 He / m^3
  *                      = 2.e15 e- / m^3 */
-BOOST_CONSTEXPR_OR_CONST float_64 GAS_DENSITY_SI = 1.e30;
+BOOST_CONSTEXPR_OR_CONST float_64 GAS_DENSITY_SI = 2.1e29;
 
 }
 
@@ -63,10 +63,8 @@ struct FreeFormulaFunctor
         const float_64 mx = 1e-6;
         const float_64 my = 1.25e-6;
         const float_64 width = 0.4e-6;
-        const float_64 angle = 80 * PI/180.0;
-
-        float_64 a = 0.1;
-        const float_64 wa = 0.5e-6;
+        const float_64 angle = 90 * PI/180.0;
+        const float_64 l = 1e-3;
 
         const float_64 x( position_SI.x() - mx);
         const float_64 y( position_SI.y() - my);
@@ -83,16 +81,15 @@ struct FreeFormulaFunctor
         else
             return 1.0;
 
-        a = log(1.0/a);
         dist *= cos(angle);
-        return exp(- a*dist/wa);
+        return exp(- dist/l);
     }
 };
 
 
 
 /* definition of gas free formula */
-typedef FreeFormulaImpl<FreeFormulaFunctor> FreeFormula;
+typedef FreeFormulaImpl<FreeFormulaFunctor> Foil;
 
 
 }//namespace gasProfiles

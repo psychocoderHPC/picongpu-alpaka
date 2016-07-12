@@ -85,11 +85,15 @@ boundElectrons
 /*########################### define species #################################*/
 
 
+
 /*--------------------------- electrons --------------------------------------*/
 
 /* ratio relative to BASE_CHARGE and BASE_MASS */
 value_identifier(float_X, MassRatioElectrons, 1.0);
 value_identifier(float_X, ChargeRatioElectrons, 1.0);
+
+/* ratio relateive to GAS_DENSITY for this species */
+value_identifier(float_X, DensityRatioElectrons, 1.0);
 
 typedef bmpl::vector<
     particlePusher<UsedParticlePusher>,
@@ -97,10 +101,11 @@ typedef bmpl::vector<
     interpolation<UsedField2Particle>,
     current<UsedParticleCurrentSolver>,
     massRatio<MassRatioElectrons>,
-    chargeRatio<ChargeRatioElectrons>
+    chargeRatio<ChargeRatioElectrons>,
+    densityRatio<DensityRatioElectrons>
 > ParticleFlagsElectrons;
 
-/* define species: electrons */
+/*define specie electrons*/
 typedef Particles<
     ParticleDescription<
         bmpl::string<'e'>,
@@ -110,66 +115,116 @@ typedef Particles<
     >
 > PIC_Electrons;
 
-/*--------------------------- ions -------------------------------------------*/
+/*--------------------------- Carbon ----------------------------------------*/
 
 /* ratio relative to BASE_CHARGE and BASE_MASS */
-value_identifier(float_X, MassRatioIons, 1836.152672);
-value_identifier(float_X, ChargeRatioIons, -1.0);
+value_identifier(float_X, MassRatioCarbon, /*21894.1285 */ 22032.0); /* ~12x proton/electron ratio */
+value_identifier(float_X, ChargeRatioCarbon, -6.0);
 
-/*! Specify (chemical) element
- *
- * Proton and neutron numbers define the chemical element that the ion species
- * is based on. This value can be non-integer for physical models taking
- * charge shielding effects into account.
- * @see http://en.wikipedia.org/wiki/Effective_nuclear_charge
- *
- * It is wrapped into a struct because of C++ restricting floats from being
- * template arguments.
- *
- * Do not forget to set the correct mass of the atom in
- * @see physicalConstants.param !
- */
-struct Hydrogen
+/* ratio relateive to GAS_DENSITY for this species */
+value_identifier(float_X, DensityRatioCarbon, 21./158.);
+
+struct CarbonAtomic
 {
-    BOOST_STATIC_CONSTEXPR float_X numberOfProtons  = 1.0;
-    BOOST_STATIC_CONSTEXPR float_X numberOfNeutrons = 0.0;
+    BOOST_STATIC_CONSTEXPR  float_X numberOfProtons = 6.0;
+    BOOST_STATIC_CONSTEXPR  float_X numberOfNeutrons = 6.0;
 };
-
-/*! Ionization Model Configuration ----------------------------------------
- *
- * For development purposes: ---------------------------------------------
- * - None : no particle is ionized
- * - BSI : simple barrier suppression ionization
- * - ADK : Ammosov-Delone-Krainov tunneling ionization (H-like)
- *
- * Usage: Add a flag to the list of particle flags that has the following structure
- *
- *        ionizer<IonizationModel<Species2BCreated> >
- */
 
 typedef bmpl::vector<
     particlePusher<UsedParticlePusher>,
     shape<UsedParticleShape>,
     interpolation<UsedField2Particle>,
     current<UsedParticleCurrentSolver>,
-    massRatio<MassRatioIons>,
-    chargeRatio<ChargeRatioIons>,
-    #if(PARAM_IONIZATION == 1)
-    ionizer<particles::ionization::BSI<PIC_Electrons> >,
-    ionizationEnergies<AU::IONIZATION_ENERGY_HYDROGEN_t>,
-    #endif
-    atomicNumbers<Hydrogen>
-> ParticleFlagsIons;
+    massRatio<MassRatioCarbon>,
+    chargeRatio<ChargeRatioCarbon>,
+    densityRatio<DensityRatioCarbon>,
+    atomicNumbers<CarbonAtomic>
+> ParticleFlagsCarbon;
 
-/* define species: ions */
+/* define species Carbon */
 typedef Particles<
     ParticleDescription<
-        bmpl::string<'i'>,
+        bmpl::string<'C'>,
         SuperCellSize,
         AttributeSeqIons,
-        ParticleFlagsIons
+        ParticleFlagsCarbon
     >
-> PIC_Ions;
+> PIC_Carbon;
+
+/*--------------------------- Nitrogen ----------------------------------------*/
+
+/* ratio relative to BASE_CHARGE and BASE_MASS */
+value_identifier(float_X, MassRatioNitrogen, 25716.852); /* ~16x proton/electron ratio */
+value_identifier(float_X, ChargeRatioNitrogen, -7.0);
+
+/* ratio relateive to GAS_DENSITY for this species */
+value_identifier(float_X, DensityRatioNitrogen, 1./158.);
+
+struct NitrogenAtomic
+{
+    BOOST_STATIC_CONSTEXPR  float_X numberOfProtons = 7.0;
+    BOOST_STATIC_CONSTEXPR  float_X numberOfNeutrons = 7.0;
+};
+
+typedef bmpl::vector<
+    particlePusher<UsedParticlePusher>,
+    shape<UsedParticleShape>,
+    interpolation<UsedField2Particle>,
+    current<UsedParticleCurrentSolver>,
+    massRatio<MassRatioNitrogen>,
+    chargeRatio<ChargeRatioNitrogen>,
+    densityRatio<DensityRatioNitrogen>,
+    atomicNumbers<NitrogenAtomic>
+> ParticleFlagsNitrogen;
+
+/* define species Nitrogen */
+typedef Particles<
+    ParticleDescription<
+        bmpl::string<'N'>,
+        SuperCellSize,
+        AttributeSeqIons,
+        ParticleFlagsNitrogen
+    >
+> PIC_Nitrogen;
+
+/*--------------------------- Proton ----------------------------------------*/
+
+/* ratio relative to BASE_CHARGE and BASE_MASS */
+value_identifier(float_X, MassRatioProton, /* 1836.153 */ 1836.0);
+value_identifier(float_X, ChargeRatioProton, -1.0);
+
+/* ratio relateive to GAS_DENSITY for this species */
+value_identifier(float_X, DensityRatioProton, 25./158.);
+
+struct ProtonAtomic
+{
+    BOOST_STATIC_CONSTEXPR  float_X numberOfProtons = 1.0;
+    BOOST_STATIC_CONSTEXPR  float_X numberOfNeutrons = 0.0;
+};
+
+typedef bmpl::vector<
+    particlePusher<UsedParticlePusher>,
+    shape<UsedParticleShape>,
+    interpolation<UsedField2Particle>,
+    current<UsedParticleCurrentSolver>,
+    massRatio<MassRatioProton>,
+    chargeRatio<ChargeRatioProton>,
+    densityRatio<DensityRatioProton>,
+    atomicNumbers<ProtonAtomic>
+> ParticleFlagsProton;
+
+/* define species Proton */
+typedef Particles<
+    ParticleDescription<
+        bmpl::string<'p'>,
+        SuperCellSize,
+        AttributeSeqIons,
+        ParticleFlagsProton
+    >
+> PIC_Proton;
+
+
+
 
 /*########################### end species ####################################*/
 
@@ -185,7 +240,9 @@ PIC_Electrons
 
 typedef MakeSeq<
 #if (ENABLE_IONS == 1)
-PIC_Ions
+PIC_Proton,
+PIC_Carbon,
+PIC_Nitrogen
 #endif
 >::type Species2;
 
