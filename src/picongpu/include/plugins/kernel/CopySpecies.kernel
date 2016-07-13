@@ -183,7 +183,7 @@ DINLINE void operator()(const T_Acc& acc, int* counter, T_DestFrame destFrame, T
     const int stridedLinearThreadIdx = threadIdx.x * T_elemSize;
     const DataSpace<Mapping::Dim> superCellPosition((block - mapper.getGuardingSuperCells()) * mapper.getSuperCellSize());
     filter.setSuperCellPosition(superCellPosition);
-    if (threadIdx.x == 0)
+    if (stridedLinearThreadIdx == 0)
     {
         localCounter = 0;
         srcFramePtr = srcBox.getFirstFrame(block);
