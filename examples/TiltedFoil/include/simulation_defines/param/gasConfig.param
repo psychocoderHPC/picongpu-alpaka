@@ -60,29 +60,48 @@ struct FreeFormulaFunctor
      */
     HDINLINE float_X operator()(const floatD_64& position_SI, const floatD_64& cellSize_SI)
     {
+        /**
+         * Coordinates of the pivot point in meter
+         */
         const float_64 mx = 1e-6;
         const float_64 my = 1.25e-6;
+        /**
+         * width of the foil
+         */
         const float_64 width = 0.4e-6;
-        const float_64 angle = 90 * PI/180.0;
-        const float_64 l = 1e-3;
+        /**
+         * angle to rotate the foil around the pivot point
+         * 0 : parallel to x-axis
+         * 90, pi/2 : parallel to y-axis (not allowed)
+         */
+        const float_64 angle = 0.0 * PI/180.0;
+        /**
+         * scale length of the preplasma (meter)
+         */
+        const float_64 l = 0.0; //1e-3 * 1e-6;
 
         const float_64 x( position_SI.x() - mx);
         const float_64 y( position_SI.y() - my);
         const float_64 m = tan(angle);
-        const float_64 mw = width / (2.0*cos(angle));
-        const float_64 sx = m*y - mw;
-        const float_64 ex = m*y + mw;
+        const float_64 mw = width * 0.5 * cos(angle);
+        const float_64 sy = m*x - mw;
+        const float_64 ey = m*x + mw;
 
         float_64 dist = 0.0;
-        if(x < sx)
-            dist = sx - x;
-        else if(x > ex)
-            dist = x - ex;
+        if(y < sy)
+            dist = sy - y;
+        else if(y > ey)
+            dist = y - ey;
         else
             return 1.0;
 
-        dist *= cos(angle);
-        return exp(- dist/l);
+        if(l != 0.0)
+        {
+            dist = dist / cos(angle);
+            return exp(- dist/l);
+        }
+        else
+            return 0.0;
     }
 };
 
