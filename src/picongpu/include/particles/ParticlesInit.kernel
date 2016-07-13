@@ -165,7 +165,7 @@ DINLINE void operator()(const T_Acc& acc,
                 const int linearThreadIdx = DataSpaceOperations<simDim>::template map<SuperCellSize > (threadIndex + idx);
                 if (numParsPerCellArray(idx) > 0)
                 {
-            floatD_X pos = positionFunctor(totalNumParsPerCell - numParsPerCell);
+                    floatD_X pos = positionFunctorArray(idx)(totalNumParsPerCellArray(idx) - numParsPerCellArray(idx));
                     PMACC_AUTO(particle, (frame[linearThreadIdx]));
 
                     /** we now initialize all attributes of the new particle to their default values
