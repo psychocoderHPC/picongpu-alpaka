@@ -294,7 +294,7 @@ operator()(const T_Acc& acc,
     typedef typename ParBox::FramePtr FramePtr;
     typedef typename MappingDesc::SuperCellSize Block;
     FramePtr frame;
-    sharedMem(isValid, bool);
+    sharedMem(isValid, int);
 
 
 
@@ -309,7 +309,7 @@ operator()(const T_Acc& acc,
 
 
     if (g_localId == 0)
-        isValid = false;
+        isValid = 0;
     __syncthreads();
 
 
@@ -334,7 +334,7 @@ operator()(const T_Acc& acc,
             if (globalCell == slice)
 #endif
             {
-                nvidia::atomicAllExch(acc, (int*) &isValid, 1, ::alpaka::hierarchy::Threads()); /*WAW Error in cuda-memcheck racecheck*/
+                nvidia::atomicAllExch(acc, &isValid, 1, ::alpaka::hierarchy::Threads()); /*WAW Error in cuda-memcheck racecheck*/
                 isImageThread = true;
             }
 
@@ -350,7 +350,7 @@ operator()(const T_Acc& acc,
     );
     __syncthreads();
 
-    if (!isValid)
+    if (isValid==0)
         return;
 
     frame = pb.getFirstFrame(block);
