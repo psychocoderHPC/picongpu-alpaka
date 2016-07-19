@@ -76,7 +76,7 @@ DINLINE void absorb(const T_Acc& acc, BoxedMemory field, uint32_t thickness, flo
                 }
                 if (factor <= float_X(0.0))
                 {
-                    return;
+                    break;
                 }
 
                 float_X a = math::exp(float_X(-absorber_strength) * (factor));
