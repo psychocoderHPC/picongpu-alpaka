@@ -184,29 +184,34 @@ void FieldE::laserManipulation( uint32_t currentStep )
 {
     const uint32_t numSlides = MovingWindow::getInstance().getSlideCounter(currentStep);
 
-    /* Disable laser if
-     * - init time of laser is over or
-     * - we have periodic boundaries in Y direction or
-     * - we already performed a slide
-     */
-    if ( ( currentStep * DELTA_T ) >= laserProfile::INIT_TIME ||
-         Environment<simDim>::get().GridController().getCommunicationMask( ).isSet( TOP ) || numSlides != 0 ) return;
+    const uint32_t timeStepShift = (laser::laserPlain * cellSize.y()) / SPEED_OF_LIGHT / DELTA_T;
 
-    DataSpace<simDim-1> gridBlocks;
-    DataSpace<simDim-1> blockSize;
-    gridBlocks.x()=fieldE->getGridLayout( ).getDataSpaceWithoutGuarding( ).x( ) / SuperCellSize::x::value;
-    blockSize.x()=SuperCellSize::x::value;
+    if( timeStepShift <= currentStep )
+    {
+        /* Disable laser if
+         * - init time of laser is over or
+         * - we have periodic boundaries in Y direction or
+         * - we already performed a slide
+         */
+        if ( ( (currentStep - timeStepShift)  * DELTA_T ) >= laserProfile::INIT_TIME  ||
+             Environment<simDim>::get().GridController().getCommunicationMask( ).isSet( TOP ) || numSlides != 0 ) return;
+
+        DataSpace<simDim-1> gridBlocks;
+        DataSpace<simDim-1> blockSize;
+        gridBlocks.x()=fieldE->getGridLayout( ).getDataSpaceWithoutGuarding( ).x( ) / SuperCellSize::x::value;
+        blockSize.x()=SuperCellSize::x::value;
 #if(SIMDIM ==DIM3)
-    gridBlocks.y()=fieldE->getGridLayout( ).getDataSpaceWithoutGuarding( ).z( ) / SuperCellSize::z::value;
-    blockSize.y()=SuperCellSize::z::value;
+        gridBlocks.y()=fieldE->getGridLayout( ).getDataSpaceWithoutGuarding( ).z( ) / SuperCellSize::z::value;
+        blockSize.y()=SuperCellSize::z::value;
 #endif
 
-    __cudaKernel_OPTI( kernelLaserE )
-	 (
-	     gridBlocks,
-	     blockSize
-	 )
-	 ( this->getDeviceDataBox( ), laser->getLaserManipulator( currentStep ), ABSORBER_CELLS[1][0] );
+        __cudaKernel_OPTI( kernelLaserE )
+         (
+             gridBlocks,
+             blockSize
+         )
+         ( this->getDeviceDataBox( ), laser->getLaserManipulator( currentStep ), ABSORBER_CELLS[1][0] );
+    }
 }
 
 void FieldE::reset( uint32_t )
