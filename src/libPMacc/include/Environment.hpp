@@ -202,8 +202,8 @@ private:
             rc = cudaSetDevice(tryDeviceId);
 #else
             cudaSetDevice(tryDeviceId);
-            break;
 #endif
+            break;
 #if 0
 #if ( PMACC_CUDA_ENABLED == 1 )
             if(rc == cudaSuccess)
