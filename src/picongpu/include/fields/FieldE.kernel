@@ -35,19 +35,19 @@ namespace picongpu
 {
 using namespace PMacc;
 
-template< typename T_ElemSize = typename PMacc::math::CT::make_Int<simDim,1>::type::vector_type >
 struct kernelLaserE
 {
 template<class EBox, typename T_Acc>
 DINLINE void operator()(const T_Acc& acc, EBox fieldE, LaserManipulator lMan, int absorberCellsYNegative) const
 {
     DataSpace<simDim> cellOffset;
+    DataSpace<DIM2> elems(elemDim);
     const DataSpace<simDim> guardSize(MappingDesc::SuperCellSize::toRT() * GUARD_SIZE);
 
-    cellOffset.x() = (blockIdx.x * MappingDesc::SuperCellSize::x::value) + (threadIdx.x * T_ElemSize::x::value);
+    cellOffset.x() = (blockIdx.x * MappingDesc::SuperCellSize::x::value) + (threadIdx.x * elems.x());
 
 #if (SIMDIM==DIM3)
-    cellOffset.z() = (blockIdx.y * MappingDesc::SuperCellSize::z::value) + (threadIdx.y * T_ElemSize::z::value);
+    cellOffset.z() = (blockIdx.y * MappingDesc::SuperCellSize::z::value) + (threadIdx.y * elems.y());
 #endif
 
     //uint32_t zOffset
@@ -76,8 +76,8 @@ DINLINE void operator()(const T_Acc& acc, EBox fieldE, LaserManipulator lMan, in
 
     namespace mapElem = mappings::elements;
 
-    mapElem::vectorize<simDim>(
-        [&]( const DataSpace<simDim>& idx )
+    mapElem::vectorize<DIM2>(
+        [&]( const DataSpace<DIM2>& idx )
         {
             for (int totalOffsetY = 0; totalOffsetY < max_y_neighbors; ++totalOffsetY)
             {
@@ -86,13 +86,23 @@ DINLINE void operator()(const T_Acc& acc, EBox fieldE, LaserManipulator lMan, in
                  *
                  *  \todo What about the B-Field in the second plane?
                  */
-                DataSpace<simDim> dataCellOffset(cellOffset + idx);
+                DataSpace<simDim> dataCellOffset(cellOffset);
+                dataCellOffset.x() += idx.x();
+#if (SIMDIM == DIM3)
+                dataCellOffset.z() += idx.y();
+#endif
                 dataCellOffset.y()=totalOffsetY + laser::laserPlain;
-                float_X amplitudeFactor = laser::laserPlain > absorberCellsYNegative ? float_X(2.0) : float_X(1.0);
-                fieldE(dataCellOffset + guardSize) += amplitudeFactor * lMan.getManipulation(dataCellOffset);
+                if ( laser::laserPlain > absorberCellsYNegative )
+                {
+                    fieldE(dataCellOffset + guardSize) += float_X(2.0) * lMan.getManipulation(dataCellOffset);
+                }
+                else
+                {
+                    fieldE(dataCellOffset + guardSize) = lMan.getManipulation(dataCellOffset);
+                }
             }
         },
-        T_ElemSize::toRT()
+        elems
     );
 
 }
