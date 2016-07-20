@@ -77,9 +77,7 @@ public:
     /** Returns true if the memory pool is shared by host and device */
     bool isSharedMemoryPool()
     {
-#ifdef PMACC_CUDA_ENABLED
-        return true;
-#else
+#if (PMACC_CUDA_ENABLED == 1)
         size_t freeInternal = 0;
         size_t freeAtStart = 0;
 
@@ -99,6 +97,8 @@ public:
             return true;
 
         return false;
+#else
+        return true;
 #endif
     }
 
