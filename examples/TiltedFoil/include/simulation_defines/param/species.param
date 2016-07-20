@@ -59,7 +59,7 @@ namespace picongpu
  *  example:             typedef particles::shapes::CIC CICShape;
  */
 #ifndef PARAM_PARTICLESHAPE
-#define PARAM_PARTICLESHAPE CIC
+#define PARAM_PARTICLESHAPE PCS
 #endif
 typedef particles::shapes::PARAM_PARTICLESHAPE UsedParticleShape;
 
