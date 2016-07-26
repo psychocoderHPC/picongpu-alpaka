@@ -34,9 +34,12 @@
 #include "communication/AsyncCommunication.hpp"
 #include "particles/traits/GetIonizer.hpp"
 #include "particles/traits/FilterByFlag.hpp"
+
+#if 0
 #include "particles/traits/GetPhotonCreator.hpp"
 #include "particles/synchrotronPhotons/SynchrotronFunctions.hpp"
 #include "particles/creation/creation.hpp"
+#endif
 
 namespace picongpu
 {
@@ -320,6 +323,7 @@ struct CallIonization
 }; // struct CallIonization
 #endif
 
+#if 0
 /** Handles the synchrotron radiation emission of photons from electrons
  *
  * \tparam T_SpeciesName name of electron species
@@ -365,6 +369,8 @@ struct CallSynchrotronPhotons
     }
 
 }; // struct CallSynchrotronPhotons
+
+#endif
 
 } // namespace particles
 

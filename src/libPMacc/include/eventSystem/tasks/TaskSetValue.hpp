@@ -208,8 +208,6 @@ public:
             /* line wise thread blocks*/
             gridSize.x = ceil(double(gridSize.x) / 256.);
 
-        if(gridSize.x * gridSize.y * gridSize.z != 0 )
-        {
             constexpr bool useElements = cupla::traits::IsThreadSeqAcc< cupla::AccThreadSeq >::value;
             if(useElements)
             {
@@ -266,8 +264,6 @@ public:
             /* line wise thread blocks*/
             gridSize.x = ceil(double(gridSize.x) / 256.);
 
-        if(gridSize.x * gridSize.y * gridSize.z != 0 )
-        {
             ValueType* devicePtr = this->destination->getPointer();
 
             CUDA_CHECK(cudaMallocHost((void**)&valuePointer_host, sizeof (ValueType)));

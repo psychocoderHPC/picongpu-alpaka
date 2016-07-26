@@ -265,16 +265,16 @@ void Particles<T_ParticleDescription>::deviceDeriveFrom( Particles< T_SrcParticl
 
     dim3 block( cellsInSupercell );
 
-    log<picLog::SIMULATION_STATE > ( "clone species %1%" ) % FrameType::getName( );
+    log<picLog::SIMULATION_STATE > ( "derive species %1%" ) % FrameType::getName( );
     constexpr bool useElements = cupla::traits::IsThreadSeqAcc< cupla::AccThreadSeq >::value;
     if(useElements)
     {
-        __picKernelArea_OPTI( kernelCloneParticles<cellsInSupercell>)( this->cellDescription, CORE + BORDER )
+        __picKernelArea_OPTI( kernelDeriveParticles<cellsInSupercell>)( this->cellDescription, CORE + BORDER )
             (block) ( this->getDeviceParticlesBox( ), src.getDeviceParticlesBox( ), functor );
     }
     else
     {
-        __picKernelArea( kernelCloneParticles<>)( this->cellDescription, CORE + BORDER )
+        __picKernelArea( kernelDeriveParticles<>)( this->cellDescription, CORE + BORDER )
             (block) ( this->getDeviceParticlesBox( ), src.getDeviceParticlesBox( ), functor );
     }
     this->fillAllGaps( );
