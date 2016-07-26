@@ -93,7 +93,8 @@ namespace picongpu
             //const float_X modMue = float_X(PI) * float_X(SPEED_OF_LIGHT / WAVE_LENGTH) * INIT_TIME;
             const float_X f = SPEED_OF_LIGHT / WAVE_LENGTH;
             const float_X timeShift = phase / (float_X(2.0) * float_X(PI) * float_X(f)) + FOCUS_POS / SPEED_OF_LIGHT;
-            const float_X spaceShift = SPEED_OF_LIGHT * algorithms::math::tan(TILT_X) * timeShift / CELL_HEIGHT;
+            const float_X tilt_X = TILT_X;
+            const float_X spaceShift = SPEED_OF_LIGHT * algorithms::math::tan(tilt_X) * timeShift / CELL_HEIGHT;
             const float_X r2 = (posX + spaceShift) * (posX + spaceShift) + posZ * posZ;
 
             // pure gaussian

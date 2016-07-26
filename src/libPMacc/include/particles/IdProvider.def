@@ -60,7 +60,7 @@ namespace PMacc {
          *  Modifies the state of the IdProvider */
         struct GetNewId
         {
-            DINLINE uint64_t operator()() const
+            HDINLINE uint64_t operator()() const
             {
                 return getNewId();
             }
@@ -75,15 +75,15 @@ namespace PMacc {
          */
         static bool isOverflown();
 
+        /** Host version for getting a new id (changing the state) */
+        static uint64_t getNewIdHost();
+
     private:
         /** Calculates the first id for the current position in the grid */
         static uint64_t calcStartId();
 
         /** Sets the next id to be returned */
         static void setNextId(uint64_t nextId);
-
-        /** Host version for getting a new id (changing the state) */
-        static uint64_t getNewIdHost();
 
         static uint64_t m_maxNumProc;
         static uint64_t m_startId;

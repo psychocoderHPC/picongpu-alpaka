@@ -150,6 +150,18 @@ T atomicAllInc(const T_Acc& acc, T *ptr, const T_Hierarchy& hierarchy = T_Hierar
     return detail::AtomicAllInc<T, (PMACC_CUDA_ARCH >= 300) >()(acc, ptr, hierarchy);
 }
 
+template<typename T>
+HDINLINE
+T atomicAllInc(T *ptr)
+{
+#ifdef __CUDA_ARCH__
+   return atomicAllInc(alpaka::atomic::AtomicCudaBuiltIn(), ptr, ::alpaka::hierarchy::Grids());
+#else
+   // assume that we can use stl atomics if we are not on gpu
+   return atomicAllInc(alpaka::atomic::AtomicStlLock(), ptr, ::alpaka::hierarchy::Grids());
+#endif
+}
+
 /** optimized atomic value exchange
  *
  * - only optimized if PTX ISA >=2.0
@@ -176,6 +188,18 @@ atomicAllExch(const T_Acc& acc, T_Type* ptr, const T_Type value, const T_Hierarc
     if (getLaneId() == leader)
 #endif
         atomicExch(ptr, value, hierarchy);
+}
+
+template<typename T_Type>
+HDINLINE void
+atomicAllExch(T_Type* ptr, const T_Type value)
+{
+#ifdef __CUDA_ARCH__
+   atomicAllExch(alpaka::atomic::AtomicCudaBuiltIn(), ptr, value, ::alpaka::hierarchy::Grids());
+#else
+   // assume that we can use stl atomics if we are not on gpu
+   atomicAllExch(alpaka::atomic::AtomicStlLock(), ptr, value, ::alpaka::hierarchy::Grids());
+#endif
 }
 
 } //namespace nvidia

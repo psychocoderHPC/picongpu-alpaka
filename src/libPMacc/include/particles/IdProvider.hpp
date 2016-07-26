@@ -34,24 +34,34 @@ namespace PMacc {
 
     namespace idDetail {
 
-        __device__ uint64_cu nextId;
+        ALPAKA_FN_ACC_CUDA_ONLY uint64_cu nextId;
 
-        __global__ void setNextId(uint64_cu id)
+        struct setNextId
         {
-            nextId = id;
-        }
+            template<typename T_Acc>
+            DINLINE void operator()(const T_Acc&, uint64_cu id) const
+            {
+                nextId = id;
+            }
+        };
 
-        template<class T_Box>
-        __global__ void getNextId(T_Box boxOut)
+        struct getNextId
         {
-            boxOut(0) = nextId;
-        }
+            template<class T_Box, typename T_Acc>
+            DINLINE void operator()(const T_Acc&, T_Box boxOut) const
+            {
+                boxOut(0) = nextId;
+            }
+        };
 
-        template<class T_Box, class T_GetNewId>
-        __global__ void getNewId(T_Box boxOut, T_GetNewId getNewId)
+        struct getNewId
         {
-            boxOut(0) = getNewId();
-        }
+            template<class T_Box, class T_IdFactory, typename T_Acc>
+            DINLINE void operator()(const T_Acc& acc, T_Box boxOut, T_IdFactory idFactory) const
+            {
+                boxOut(0) = idFactory();
+            }
+        };
 
     }  // namespace idDetail
 
@@ -70,8 +80,6 @@ namespace PMacc {
         state.startId = state.nextId = calcStartId();
         // Init value to avoid uninitialized read warnings
         setNextId(state.startId);
-        // Instantiate kernel (Omitting this will result in silent crashes at runtime)
-        getNewIdHost();
         // Reset to start value
         state.maxNumProc = Environment<T_dim>::get().GridController().getGpuNodes().productOfComponents();
         setState(state);
@@ -90,7 +98,7 @@ namespace PMacc {
     }
 
     template<unsigned T_dim>
-    IdProvider<T_dim>::State IdProvider<T_dim>::getState()
+    typename IdProvider<T_dim>::State IdProvider<T_dim>::getState()
     {
         HostDeviceBuffer<uint64_cu, 1> nextIdBuf(DataSpace<1>(1));
         __cudaKernel(idDetail::getNextId)(1, 1)(nextIdBuf.getDeviceBuffer().getDataBox());
@@ -105,12 +113,7 @@ namespace PMacc {
     template<unsigned T_dim>
     HDINLINE uint64_t IdProvider<T_dim>::getNewId()
     {
-#ifdef __CUDA_ARCH__
         return static_cast<uint64_t>(nvidia::atomicAllInc(&idDetail::nextId));
-#else
-        // IMPORTANT: This calls a kernel. So make sure this kernel is instantiated somewhere before!
-        return getNewIdHost();
-#endif
     }
 
     template<unsigned T_dim>

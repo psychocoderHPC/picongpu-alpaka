@@ -51,8 +51,11 @@
 #include "initialization/IInitPlugin.hpp"
 #include "initialization/ParserGridDistribution.hpp"
 #include "particles/synchrotronPhotons/SynchrotronFunctions.hpp"
+
+#if 0
 #include "random/methods/XorMin.hpp"
 #include "random/RNGProvider.hpp"
+#endif
 
 #include "nvidia/reduce/Reduce.hpp"
 #include "memory/boxes/DataBoxDim1Access.hpp"
@@ -107,8 +110,10 @@ public:
     currentBGField(NULL),
     cellDescription(NULL),
     initialiserController(NULL),
-    slidingWindow(false),
-    rngFactory(NULL)
+    slidingWindow(false)
+#if 0
+    ,rngFactory(NULL)
+#endif
     {
         ForEach<VectorAllSpecies, particles::AssignNull<bmpl::_1>, MakeIdentifier<bmpl::_1> > setPtrToNull;
         setPtrToNull(forward(particleStorage));
@@ -268,8 +273,9 @@ public:
         __delete(pushBGField);
         __delete(currentBGField);
         __delete(cellDescription);
-
+#if 0
         __delete(rngFactory);
+#endif
     }
 
     void notify(uint32_t)
@@ -378,6 +384,8 @@ public:
 
         /* add CUDA streams to the StreamController for concurrent execution */
         Environment<>::get().StreamController().addStreams(2);
+#if 0
+#endif
     }
 
     virtual uint32_t fillSimulation()
@@ -661,13 +669,14 @@ protected:
 
     LaserPhysics *laser;
 
+#if 0
     // Synchrotron functions (used in synchrotronPhotons module)
     particles::synchrotronPhotons::SynchrotronFunctions synchrotronFunctions;
 
     // factory for the random number generator
     typedef PMacc::random::RNGProvider<simDim, PMacc::random::methods::XorMin> RNGFactory;
     RNGFactory* rngFactory;
-
+#endif
     // output classes
 
     IInitPlugin* initialiserController;
