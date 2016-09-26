@@ -169,23 +169,9 @@ private:
     {
         int num_gpus = 0; //number of gpus
         cudaGetDeviceCount(&num_gpus);
-        //##ERROR handling
-        if (num_gpus < 1) //check if cuda device is found
-        {
-            throw std::runtime_error("no CUDA capable devices detected");
-        }
-// allow to oversubscribe cpu devices
-#if ( PMACC_CUDA_ENABLED == 1 )
-        else if (num_gpus <= deviceNumber) //check if device can be selected by deviceNumber
-        {
-            std::cerr << "no CUDA device " << deviceNumber << ", only " << num_gpus << " devices found" << std::endl;
-            throw std::runtime_error("CUDA capable devices can't be selected");
-        }
-#endif
-
 
         int maxTries = num_gpus;
-#if ( PMACC_CUDA_ENABLED == 1 )
+
         //cudaDeviceProp devProp;
         cudaError rc = cuplaSuccess;
         //CUDA_CHECK(cudaGetDeviceProperties(&devProp, deviceNumber));
@@ -194,51 +180,17 @@ private:
         //if (devProp.computeMode == cudaComputeModeDefault)
             //maxTries = 1;
 
-#endif
         for (int deviceOffset = 0; deviceOffset < maxTries; ++deviceOffset)
         {
-            const int tryDeviceId = (deviceOffset + deviceNumber) % num_gpus;
-#if ( PMACC_CUDA_ENABLED == 1 )
+            const int tryDeviceId = ( deviceOffset + deviceNumber ) % num_gpus;
+
             rc = cudaSetDevice(tryDeviceId);
-#else
-            cudaSetDevice(tryDeviceId);
-#endif
-            break;
-#if 0
-#if ( PMACC_CUDA_ENABLED == 1 )
+
             if(rc == cudaSuccess)
             {
-               cudaStream_t stream;
-               /* \todo: Check if this workaround is needed
-                *
-                * - since NVIDIA change something in driver cudaSetDevice never
-                * return an error if another process already use the selected
-                * device if gpu compute mode is set "process exclusive"
-                * - create a dummy stream to check if the device is already used by
-                * an other process.
-                * - cudaStreamCreate fail if gpu is already in use
-                */
-               rc = cudaStreamCreate(&stream);
+                return;
             }
-
-            if (rc == cudaSuccess)
-            {
-                //cudaDeviceProp dprop;
-                //CUDA_CHECK(cudaGetDeviceProperties(&dprop, tryDeviceId));
-                //log<ggLog::CUDA_RT > ("Set device to %1%: %2%") % tryDeviceId % dprop.name;
-                if(cudaErrorSetOnActiveProcess == cudaSetDeviceFlags(cudaDeviceScheduleSpin))
-                {
-                    cudaGetLastError(); //reset all errors
-                    /* - because of cudaStreamCreate was called cudaSetDeviceFlags crashed
-                     * - to set the flags reset the device and set flags again
-                     */
-                    CUDA_CHECK(cudaDeviceReset());
-                    //CUDA_CHECK(cudaSetDeviceFlags(cudaDeviceScheduleSpin));
-                }
-                CUDA_CHECK(cudaGetLastError());
-                break;
-            }
-            else if (rc == cudaErrorDeviceAlreadyInUse || rc==cudaErrorDevicesUnavailable)
+            else if (rc == cudaErrorDeviceAlreadyInUse)
             {
                 cudaGetLastError(); //reset all errors
                 log<ggLog::CUDA_RT > ("Device %1% already in use, try next.") % tryDeviceId;
@@ -248,8 +200,6 @@ private:
             {
                 CUDA_CHECK(rc); /*error message*/
             }
-#endif
-#endif
         }
     }
 };

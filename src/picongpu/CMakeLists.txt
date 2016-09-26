@@ -438,21 +438,15 @@ include_directories(BEFORE ${PIC_EXTENSION_PATH}/include)
 
 file(GLOB SRCFILES "*.cpp")
 
-
-include_directories(${cupla_INCLUDE_DIRS})
-
-add_definitions(
-    ${cupla_DEFINITIONS})
 # Always add all files to the target executable build call to add them to the build project.
-alpaka_add_executable(
+cupla_add_executable(
     "picongpu"
-    ${SRCFILES}
-    ${cupla_SOURCE_FILES})
+    ${SRCFILES})
 
 # Set the link libraries for this library (adds libs, include directories, defines and compile options).
 target_link_libraries(
     "picongpu"
-    PUBLIC ${_cupla_LINK_LIBRARIES_PUBLIC} ${LIBS} z m )
+    PUBLIC ${cupla_LIBRARIES} ${LIBS} z m )
 
 ################################################################################
 # Install PIConGPU
