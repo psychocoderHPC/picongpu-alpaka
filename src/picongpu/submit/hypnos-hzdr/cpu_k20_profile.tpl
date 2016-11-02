@@ -20,7 +20,7 @@
 
 
 ## calculation are done by tbg ##
-TBG_queue="intel"
+TBG_queue="k20"
 
 # settings that can be controlled by environment variables before submit
 TBG_mailSettings=${MY_MAILNOTIFY:-"n"}
@@ -28,7 +28,7 @@ TBG_mailAddress=${MY_MAIL:-"someone@example.com"}
 TBG_author=${MY_NAME:+--author \"${MY_NAME}\"}
 
 # 8 gpus per node if we need more than 8 gpus else same count as TBG_tasks
-TBG_gpusPerNode=8
+TBG_gpusPerNode=2
 
 #number of cores per parallel node / default is 2 cores per gpu on k20 queue
 TBG_coresPerNode="$(( TBG_gpusPerNode * 4 ))"
@@ -57,7 +57,7 @@ echo 'Running program...'
 cd !TBG_dstPath
 
 export MODULES_NO_OUTPUT=1
-source ~/alpaka.profile
+source ~/alpaka-k20.profile
 if [ $? -ne 0 ] ; then
   echo "Error: ~/picongpu.profile not found!"
   exit 1

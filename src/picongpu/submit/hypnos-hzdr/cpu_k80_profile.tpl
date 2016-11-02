@@ -57,7 +57,7 @@ echo 'Running program...'
 cd !TBG_dstPath
 
 export MODULES_NO_OUTPUT=1
-source ~/alpaka.profile
+source ~/alpaka-k20.profile
 if [ $? -ne 0 ] ; then
   echo "Error: ~/picongpu.profile not found!"
   exit 1
