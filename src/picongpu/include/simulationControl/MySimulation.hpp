@@ -296,6 +296,8 @@ public:
 
         laser = new LaserPhysics(cellDescription->getGridLayout());
 
+#if 0
+
         // Make a list of all species that can be ionized
         typedef typename PMacc::particles::traits::FilterByFlag
         <
@@ -326,7 +328,7 @@ public:
         {
             this->synchrotronFunctions.init();
         }
-
+#endif
         ForEach<VectorAllSpecies, particles::CreateSpecies<bmpl::_1>, MakeIdentifier<bmpl::_1> > createSpeciesMemory;
         createSpeciesMemory(forward(particleStorage), cellDescription);
 
@@ -384,8 +386,6 @@ public:
 
         /* add CUDA streams to the StreamController for concurrent execution */
         Environment<>::get().StreamController().addStreams(2);
-#if 0
-#endif
     }
 
     virtual uint32_t fillSimulation()

@@ -70,7 +70,7 @@ public:
                  *      laser init time is not over
                  *      laser::laserPlain <= absorber cells in negative y direction
                  */
-                if( laser::laserPlain <= ABSORBER_CELLS[1][0])
+                if( laser::laserPlain == ABSORBER_CELLS[1][0] || laser::laserPlain < ABSORBER_CELLS[1][0] )
                 {
                     if (numSlides == 0 && ((currentStep * DELTA_T) <= laserProfile::INIT_TIME))
                     {

@@ -31,6 +31,7 @@
 #include "traits/GetComponentsType.hpp"
 #include "traits/NumberOfExchanges.hpp"
 #include "traits/GetDataBoxType.hpp"
+#include "traits/UsesRNG.hpp"
 
 namespace picongpu
 {

@@ -105,7 +105,7 @@ math::Size_t<DIM3> getBestCudaBlockDim(const math::Size_t<dim> gridSize)
         MaxCudaBlockDim<dim>::type::toRT(); /* max threads per axis */
     for(int i = 0; i < dim; i++)
     {
-        result[i] = boost::math::gcd(gridDim[i], maxThreads[i]);
+        result[i] = boost::math::gcd(gridSize[i], maxThreads[i]);
     }
 
     return result;
